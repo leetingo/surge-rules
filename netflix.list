@@ -1,0 +1,20 @@
+# Netflix
+# Only Netflix-owned names. No shared cloud suffixes, no shared cloud CIDRs.
+# Surge: RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/netflix.list,Netflix,extended-matching,no-resolve
+DOMAIN-SUFFIX,netflix.com
+DOMAIN-SUFFIX,netflix.net
+DOMAIN-SUFFIX,netflix.ca
+DOMAIN-SUFFIX,netflix.com.au
+DOMAIN-SUFFIX,netflix.com.edgesuite.net
+DOMAIN-SUFFIX,nflxext.com
+DOMAIN-SUFFIX,nflximg.com
+DOMAIN-SUFFIX,nflximg.net
+DOMAIN-SUFFIX,nflxso.net
+DOMAIN-SUFFIX,nflxvideo.net
+DOMAIN-SUFFIX,nflxsearch.net
+DOMAIN-KEYWORD,netflixdnstest
+# Netflix device API load balancers hosted on AWS.
+# These narrow keywords replace the whole-region suffix us-west-2.amazonaws.com.
+DOMAIN-KEYWORD,apiproxy-device-prod-nlb-
+DOMAIN-KEYWORD,dualstack.apiproxy-
+DOMAIN-KEYWORD,dualstack.ichnaea-web-
