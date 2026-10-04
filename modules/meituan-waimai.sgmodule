@@ -1,0 +1,15 @@
+#!name=美团外卖：去广告（第一步）
+#!desc=第一步只做一件事：让美团外卖的接口从私有长连接改走 HTTPS。这样开屏、弹窗和信息流的数据才看得到、改得了。本版还不删任何广告，用来抓包取证。
+#!category=美团
+#!author=leetingo
+#!homepage=https://github.com/leetingo/surge-rules
+#!version=0.1.0
+
+[Rule]
+# 美团的接口默认走私有长连接（Shark）：直连下面这些服务器的 443 端口，不是 TLS，Surge 看不到内容。
+# 拒绝这类连接后，应用会退回 HTTPS 访问 wmapi.meituan.com。只匹配按 IP 直连、既不是 TLS 也不是 HTTP 的 TCP。
+# 202.90.108.0/22 和 103.37.152.0/22 是美团自己的地址段，119.29.126.181 是它放在腾讯云上的接入点。
+AND,((OR,((IP-CIDR,202.90.108.0/22,no-resolve), (IP-CIDR,103.37.152.0/22,no-resolve), (IP-CIDR,119.29.126.181/32,no-resolve))), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP)))),REJECT
+
+[MITM]
+hostname = %APPEND% wmapi.meituan.com

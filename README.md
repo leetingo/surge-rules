@@ -98,6 +98,14 @@ Surge 对同一个响应只运行一个脚本，所以每个接口只归其中�
 - “模块设置”入口由一条响应改写规则添加，两个模块写的是同一条，已经有入口时不会重复加。
 - 广告按接口返回里的标记判断：`mblogtypename` 为“广告”或“热推”，`is_ad` 或 `ad_state` 为 1，`readtimetype` 为 `adMblog`，`is_ad_card` 为 1，以及 `promotion`、`content_auth_info`、`ads_material_info` 里的广告标记。
 
+## 美团外卖模块
+
+| 模块 | 状态 | 安装地址 |
+|---|---|---|
+| 美团外卖：去广告（第一步） | 取证版，还不删广告 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/meituan-waimai.sgmodule` |
+
+美团外卖的接口不走普通的 HTTPS，而是走私有长连接，直连服务器的 443 端口。开屏、弹窗、信息流的数据都在里面，Surge 看不到。第一步只包含一条规则：拒绝这类长连接，让应用退回 HTTPS。确认可行并抓到接口内容之后，再写删广告的规则。
+
 ## 维护
 
 改完文件后提交并推送到 `main`。Surge 默认每 24 小时重新下载一次规则集，也可以在外部资源里手动更新；模块在模块列表里手动更新。
