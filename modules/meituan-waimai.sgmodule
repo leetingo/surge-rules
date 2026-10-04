@@ -1,15 +1,26 @@
 #!name=美团外卖：去广告（第一步）
-#!desc=第一步只做一件事：让美团外卖的接口从私有长连接改走 HTTPS。这样开屏、弹窗和信息流的数据才看得到、改得了。本版还不删任何广告，用来抓包取证。
+#!desc=第一步只做一件事：让美团外卖的接口从私有长连接改走 HTTPS。这样开屏、弹窗和信息流的数据才看得到、改得了。本版还不删任何广告。
 #!category=美团
 #!author=leetingo
 #!homepage=https://github.com/leetingo/surge-rules
-#!version=0.2.0
+#!version=0.3.0
+#!arguments=learn:true,kill:true
+#!arguments-desc=learn: 自动学习长连接接入点\n应用会把连过的接入服务器写进自己的监控上报，脚本读出地址并记下来，之后拒绝发往这些地址的长连接。填 false 则只用仓库里的固定清单。\n\nkill: 学到后断开已连上的长连接\n已经建立的连接不会再过规则，断开后应用重连时才会被拒。填 false 则要等下次启动应用才生效。
 
 [Rule]
-# 美团的接口默认走私有长连接（Shark）：按 IP 直连服务器的 443 端口，不是 TLS，Surge 看不到内容。
+# 美团的接口默认走私有长连接（Shark）：按 IP 直连接入服务器的 443 端口，不是 TLS，Surge 看不到内容。
 # 某个请求的长连接被拒后，应用会把这个请求改走 HTTPS；但只要还有别的接入服务器连得上，它就继续用长连接。
-# 所以要把美团名下的地址段全部列进去。只匹配按 IP 直连、既不是 TLS 也不是 HTTP 的 TCP。
+# 两条规则都只匹配按 IP 直连、既不是 TLS 也不是 HTTP 的 TCP。
+# 第一条：美团名下的全部地址段，加上抓包里见过的云上接入点。
 AND,((RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/meituan-shark.list,no-resolve), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP)))),REJECT
+# 第二条：脚本从应用的监控上报里学到的接入点。云上的接入点会换，没法预先列全。
+AND,((IP-CIDR,0.0.0.0/0,no-resolve), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP))), (SCRIPT,meituan.shark.rule)),REJECT
+
+[Script]
+# 判断目的地址是不是已学到的接入点
+meituan.shark.rule = type=rule, engine=jsc, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/meituan.js?v=0.3.0, argument="learn={{{learn}}}&kill={{{kill}}}"
+# 读应用自己的监控上报，学习它连过的接入点。上报内容原样放行，只在本机读取
+meituan.shark.learn = type=http-request, pattern=^https:\/\/catdot\.dianping\.com\/broker-service\/commandbatch, requires-body=1, max-size=1048576, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/meituan.js?v=0.3.0, argument="learn={{{learn}}}&kill={{{kill}}}"
 
 [MITM]
-hostname = %APPEND% wmapi.meituan.com
+hostname = %APPEND% wmapi.meituan.com, catdot.dianping.com
