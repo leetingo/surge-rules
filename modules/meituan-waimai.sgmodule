@@ -3,13 +3,13 @@
 #!category=美团
 #!author=leetingo
 #!homepage=https://github.com/leetingo/surge-rules
-#!version=0.5.0
+#!version=0.5.1
 
 [URL Rewrite]
-# 开屏广告的图片素材
-^https?:\/\/img\.meituan\.net\/bizad\/bizad_brandCpt _ reject
+# 开屏广告的图片素材；img 被拒后会换到 p10 等备用图片域名重试
+^https?:\/\/(?:img|p\d+)\.meituan\.net\/bizad\/bizad_brandCpt_ _ reject
 # 开屏广告的视频素材
 ^https?:\/\/s3plus\.meituan\.net\/v1\/[^\/]+\/brandcpt-vedio\/ _ reject
 
 [MITM]
-hostname = %APPEND% img.meituan.net, s3plus.meituan.net
+hostname = %APPEND% img.meituan.net, p*.meituan.net, s3plus.meituan.net
