@@ -11,7 +11,7 @@ const vm = require('vm');
 const root = path.join(__dirname, '..');
 const ctx = { $done() {}, console: { log() {} } };
 vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts/weibo.js'), 'utf8'), ctx);
-const { SCHEMA, VERSION, ENTRY_ID, PAGE_PATH } = ctx;
+const { SCHEMA, VERSION, ENTRY_ID, PAGE_PATH, MARK_PREFIX } = ctx;
 
 const RAW = 'https://raw.githubusercontent.com/leetingo/surge-rules/main';
 const SCRIPT = `${RAW}/scripts/weibo.js?v=${VERSION}`;
@@ -51,11 +51,20 @@ function argumentsDesc(mod) {
   return blocks.join('\\n\\n');
 }
 
-function scriptArgument(mod) {
+function argumentText(mod) {
   const s = SCHEMA[mod];
   const keys = s.items.map((i) => i.key).concat(s.fixed.map((f) => f.key));
-  return `"module=${mod}&` + keys.map((k) => `${k}={{{${k}}}}`).join('&') + '"';
+  return `module=${mod}&` + keys.map((k) => `${k}={{{${k}}}}`).join('&');
 }
+
+const scriptArgument = (mod) => `"${argumentText(mod)}"`;
+
+// push/active 两个模块都要改，而同一个响应只运行一个脚本。每个模块在内容里留一个带参数的标记，
+// 响应改写先于脚本执行，运行的那个脚本据此替另一个模块一并处理，然后去掉标记
+const markRule = (mod) => [
+  '# 给两个模块共用的接口留一个带参数的标记，脚本处理后会去掉',
+  `http-response-jq ^https:\\/\\/api\\.weibo\\.cn\\/2\\/push\\/active 'if type == "object" then .${MARK_PREFIX}${mod} = "${argumentText(mod)}" else . end'`,
+];
 
 // “我”页面的入口用响应改写来加，两个模块写的是同一条，已经有入口时不会重复加
 const ENTRY_JQ = [
@@ -104,6 +113,7 @@ const ad = header('ad', '去掉微博的广告，以及内容里的推广、推�
   '',
   '[Body Rewrite]',
   ...ENTRY_RULE,
+  ...markRule('ad'),
   '',
   '[Script]',
   '# 改写响应：开屏、信息流、发现页、详情页、评论区、消息页、启动配置、签到',
@@ -118,13 +128,14 @@ const ad = header('ad', '去掉微博的广告，以及内容里的推广、推�
   '',
 ]);
 
-const ui = header('ui', '精简微博的页面布局：“我”页面、私信列表、首页直播条。每一项都能单独设置：在模块参数里改，或者在微博“我”页面的“模块设置”里改。').concat([
+const ui = header('ui', '调整微博的页面布局：底部标签栏、“我”页面、私信列表、首页直播条。每一项都能单独设置：在模块参数里改，或者在微博“我”页面的“模块设置”里改。').concat([
   '[Body Rewrite]',
   ...ENTRY_RULE,
+  ...markRule('ui'),
   '',
   '[Script]',
-  '# 改写响应：“我”页面、私信列表、首页直播条',
-  `weibo.ui.response = type=http-response, pattern=^https:\\/\\/api\\.weibo\\.cn\\/2\\/(?:profile\\/me|direct_messages\\/user_list|live\\/media_homelist), requires-body=1, max-size=2097152, timeout=10, script-path=${SCRIPT}, argument=${scriptArgument('ui')}`,
+  '# 改写响应：底部标签栏、“我”页面、私信列表、首页直播条',
+  `weibo.ui.response = type=http-response, pattern=^https:\\/\\/api\\.weibo\\.cn\\/2\\/(?:profile\\/me|direct_messages\\/user_list|live\\/media_homelist|client\\/interrupt|push\\/active), requires-body=1, max-size=2097152, timeout=10, script-path=${SCRIPT}, argument=${scriptArgument('ui')}`,
   '# 微博里的管理页面，以及它读写设置用的接口',
   settingsLine('ui'),
   '',

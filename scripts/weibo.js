@@ -6,7 +6,10 @@
  *   modules/weibo-adblock.sgmodule  去广告，以及内容里的推广、推荐和提示
  *   modules/weibo-ui.sgmodule       界面，“我”页面、私信列表、直播条
  *
- * Surge 对同一个请求或响应只运行一个脚本，所以每个接口只归其中一个模块。
+ * Surge 对同一个请求或响应只运行一个脚本，所以每个接口通常只归其中一个模块。
+ * 两个模块都要改的接口（push/active）靠标记协作：每个模块用一条响应改写规则，
+ * 在内容里留下 __weibo_<模块> 标记并带上自己的参数。响应改写先于脚本执行，
+ * 所以运行的那个脚本能看到另一个模块是否启用以及它的参数，一并处理后去掉标记。
  *
  * 每一项设置的取值顺序，后面的覆盖前面的：
  *   1. 本文件里的默认值
@@ -15,11 +18,13 @@
  */
 'use strict';
 
-var VERSION = '5.0.0';
+var VERSION = '5.1.0';
 var PAGE_PATH = '/surge-rules/weibo/settings';
 var API_PATH = '/surge-rules/weibo/api/';
 var ENTRY_ID = '100505_-_modulesettings';
 var BIG_MARK = '@@wbBigInt@@';
+var MARK_PREFIX = '__weibo_';
+var TAB_LOCKED = ['profile'];
 
 var SCHEMA = {
   ad: {
@@ -84,6 +89,10 @@ var SCHEMA = {
     tab: '界面',
     store: 'leetingo_weibo_ui',
     items: [
+      { key: 'bottom_tabs', group: '底部标签栏', title: '保留的标签', type: 'multi', def: ['home', 'discover', 'message', 'profile'],
+        options: [['home', '首页'], ['video', '视频'], ['discover', '发现'], ['message', '消息'], ['profile', '我']],
+        free: true, allowAll: true, locked: TAB_LOCKED,
+        desc: '只显示选中的标签，顺序不变。“我”始终保留，否则进不了模块设置。all 表示全部保留，不改动。改完要彻底关掉微博再打开。' },
       { key: 'me_vip', group: '“我”页面', title: '会员头图和会员入口', type: 'bool', def: true,
         desc: '顶部的会员背景图、会员图标和“领会员”入口。' },
       { key: 'me_shortcuts', group: '“我”页面', title: '保留的快捷入口', type: 'multi', def: ['album', 'like', 'watchhistory', 'draft'],
@@ -170,6 +179,7 @@ function coerce(item, raw) {
       var known = item.options.map(function (o) { return o[0]; });
       list = list.filter(function (x) { return known.indexOf(x) >= 0; });
     }
+    if (item.locked) item.locked.forEach(function (x) { if (list.indexOf(x) < 0) list.push(x); });
     return list;
   }
   return undefined;
@@ -508,6 +518,27 @@ function uiLive(obj, cfg) {
   filterArray(obj, 'data', function (x) { return isObj(x) && x.from_tuijian === true; });
 }
 
+// 底部标签栏：interrupt 和 push/active 都带着同一份配置，形如 home,video,discover,message,profile
+function uiTabs(obj, cfg) {
+  var keep = cfg.bottom_tabs;
+  if (!isArr(keep) || keep.indexOf('all') >= 0) return;
+  if (!isObj(obj) || !isObj(obj.tabbar) || !isArr(obj.tabbar.uids)) return;
+  obj.tabbar.uids.forEach(function (u) {
+    if (!isObj(u) || typeof u.tabbar !== 'string' || u.tabbar === '') return;
+    var tabs = u.tabbar.split(',');
+    var chosen = 0;
+    var kept = tabs.filter(function (t) {
+      if (keep.indexOf(t) < 0 && TAB_LOCKED.indexOf(t) < 0) return false;
+      if (TAB_LOCKED.indexOf(t) < 0) chosen++;
+      return true;
+    });
+    // 除了必留的以外一个都没对上，说明标识变了，这时不动
+    if (chosen === 0 || kept.length === tabs.length) return;
+    u.tabbar = kept.join(',');
+    changed++;
+  });
+}
+
 /* ---------- 路由 ---------- */
 
 var RESPONSE_ROUTES = [
@@ -523,8 +554,17 @@ var RESPONSE_ROUTES = [
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/checkin\/show/, fn: adCheckin },
   { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/profile\/me/, fn: uiMe },
   { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/direct_messages\/user_list/, fn: uiDmList },
-  { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/live\/media_homelist/, fn: uiLive }
+  { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/live\/media_homelist/, fn: uiLive },
+  { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/client\/interrupt/, fn: uiTabs },
+  { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/push\/active/, fn: uiTabs }
 ];
+
+function findRoute(mod, url) {
+  for (var i = 0; i < RESPONSE_ROUTES.length; i++) {
+    if (RESPONSE_ROUTES[i].mod === mod && RESPONSE_ROUTES[i].re.test(url)) return RESPONSE_ROUTES[i];
+  }
+  return null;
+}
 
 // 直接返回空结果的请求：[模块, 地址, 对应的开关]
 var BLOCK_ROUTES = [
@@ -534,15 +574,25 @@ var BLOCK_ROUTES = [
 ];
 
 function onResponse(mod, args, url) {
-  var route = null;
-  for (var i = 0; i < RESPONSE_ROUTES.length; i++) {
-    if (RESPONSE_ROUTES[i].mod === mod && RESPONSE_ROUTES[i].re.test(url)) { route = RESPONSE_ROUTES[i]; break; }
-  }
+  var route = findRoute(mod, url);
   var body = $response.body;
   if (!route || typeof body !== 'string' || body.length === 0) return $done({});
   var obj;
   try { obj = JSON.parse(protectBigInts(body)); } catch (e) { return $done({}); }
-  route.fn(obj, effective(mod, args).values, url);
+  var jobs = [{ mod: mod, args: args, fn: route.fn }];
+  // 另一个模块留下的标记：说明它也启用了，并带着它的参数；标记本身一律去掉
+  if (isObj(obj)) {
+    for (var other in SCHEMA) {
+      var key = MARK_PREFIX + other;
+      if (!has(SCHEMA, other) || !has(obj, key)) continue;
+      var mark = obj[key];
+      delete obj[key];
+      changed++;
+      var theirs = other === mod ? null : findRoute(other, url);
+      if (theirs && typeof mark === 'string') jobs.push({ mod: other, args: parseArgs(mark), fn: theirs.fn });
+    }
+  }
+  jobs.forEach(function (j) { j.fn(obj, effective(j.mod, j.args).values, url); });
   if (changed === 0) return $done({});
   log(url.replace(/\?.*$/, '').replace(/^https:\/\/[^/]+/, '') + ' 改动 ' + changed + ' 处');
   $done({ body: restoreBigInts(JSON.stringify(obj)) });
@@ -577,6 +627,7 @@ function stateOf(mod, args) {
       return {
         key: it.key, group: it.group, title: it.title, desc: it.desc, type: it.type,
         options: it.options || null, free: !!it.free, allowAll: !!it.allowAll,
+        def: it.def, locked: it.locked || [],
         value: d.value, source: d.source, argValue: d.argValue
       };
     }),
@@ -674,6 +725,7 @@ var PAGE_HTML = [
 '.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}',
 '.chip{border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;font-size:14px;border-radius:16px;padding:5px 12px}',
 '.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}',
+'.chip:disabled{opacity:.55}',
 '.free{display:flex;gap:8px;margin-top:10px}',
 '.free input{flex:1;min-width:0}',
 '.free button{flex:none;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:600;padding:0 14px}',
@@ -720,8 +772,9 @@ var PAGE_HTML = [
 '  var known=item.options.map(function(o){return o[0];});var value=listValue(item);var isAll=value.indexOf("all")>=0;',
 '  var chips=el("div","chips");',
 '  if(item.allowAll){var a=el("button","chip","全部保留");a.type="button";a.setAttribute("aria-pressed",isAll?"true":"false");',
-'    a.addEventListener("click",function(){setValue(mod,item.key,isAll?known.slice(0,4):["all"]);});chips.appendChild(a);}',
+'    a.addEventListener("click",function(){setValue(mod,item.key,isAll?item.def.slice():["all"]);});chips.appendChild(a);}',
 '  item.options.forEach(function(o){var on=isAll||value.indexOf(o[0])>=0;var b=el("button","chip",o[1]);b.type="button";b.setAttribute("aria-pressed",on?"true":"false");',
+'    if(item.locked.indexOf(o[0])>=0){b.disabled=true;b.setAttribute("aria-pressed","true");b.title="始终保留";chips.appendChild(b);return;}',
 '    b.addEventListener("click",function(){var base=isAll?known.slice():value.slice();var p=base.indexOf(o[0]);if(p>=0)base.splice(p,1);else base.push(o[0]);setValue(mod,item.key,base);});chips.appendChild(b);});',
 '  value.forEach(function(v){if(v==="all"||known.indexOf(v)>=0)return;var b=el("button","chip",v+" ×");b.type="button";b.setAttribute("aria-pressed","true");',
 '    b.addEventListener("click",function(){setValue(mod,item.key,value.filter(function(x){return x!==v;}));});chips.appendChild(b);});',
