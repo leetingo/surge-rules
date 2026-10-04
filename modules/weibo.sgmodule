@@ -1,0 +1,26 @@
+#!name=微博去广告
+#!desc=去掉微博的开屏广告、首页和热门信息流里的广告微博、签到弹窗和悬浮窗。只有规则、响应改写和本地映射，不含任何脚本。
+
+[Rule]
+# 微博广告平台的域名：广告图片，以及广告的曝光和点击上报
+DOMAIN-SUFFIX,biz.weibo.com,REJECT,pre-matching
+
+[Body Rewrite]
+# 开屏广告：清空预加载的广告列表
+http-response-jq ^https:\/\/bootpreload\.uve\.weibo\.com\/v[12]\/ad\/preload 'if type == "object" and (.ads | type) == "array" then .ads = [] else . end'
+# 首页信息流：去掉标记为广告的微博，含分组里嵌套的条目
+http-response-jq ^https:\/\/api\.weibo\.cn\/2\/statuses\/container_timeline 'def isad: type == "object" and (.data | type) == "object" and (.data.mblogtypename == "广告" or .data.is_ad == 1 or .data.is_ad == "1" or .data.ad_state == 1 or .data.ad_state == "1" or .data.readtimetype == "adMblog"); def clean: if type == "object" and (.items | type) == "array" then .items |= (map(select(isad | not)) | map(clean)) else . end; clean'
+# 热门和发现页
+http-response-jq ^https:\/\/api\.weibo\.cn\/2\/search\/finder\? 'def isad: type == "object" and (.data | type) == "object" and (.data.mblogtypename == "广告" or .data.is_ad == 1 or .data.is_ad == "1" or .data.ad_state == 1 or .data.ad_state == "1" or .data.readtimetype == "adMblog"); def clean: if type == "object" and (.items | type) == "array" then .items |= (map(select(isad | not)) | map(clean)) else . end; if type == "object" then (if (.channelInfo | type) == "object" and (.channelInfo.channels | type) == "array" then .channelInfo.channels |= map(if type == "object" and (.payload | type) == "object" then .payload |= clean else . end) else . end) | (if (.header | type) == "object" and (.header.data | type) == "object" then .header.data |= clean else . end) else . end'
+http-response-jq ^https:\/\/api\.weibo\.cn\/2\/search\/container_timeline 'def isad: type == "object" and (.data | type) == "object" and (.data.mblogtypename == "广告" or .data.is_ad == 1 or .data.is_ad == "1" or .data.ad_state == 1 or .data.ad_state == "1" or .data.readtimetype == "adMblog"); def clean: if type == "object" and (.items | type) == "array" then .items |= (map(select(isad | not)) | map(clean)) else . end; clean'
+# 签到弹窗
+http-response-jq ^https:\/\/api\.weibo\.cn\/2\/checkin\/show 'if type == "object" and has("show") then .show = 0 else . end'
+# 悬浮窗和信息流里的红包图标
+http-response-jq ^https:\/\/api\.weibo\.cn\/2\/push\/active 'if type == "object" then (if (.floating_windows | type) == "array" then .floating_windows = [] else . end) | (if has("disable_floating_window") then .disable_floating_window = "1" else . end) | (if (.feed_redpacket | type) == "object" then .feed_redpacket.starttime = "2208960000" | .feed_redpacket.endtime = "2209046399" | .feed_redpacket.interval = "31536000" else . end) else . end'
+
+[Map Local]
+# 开屏广告的实时请求：直接返回空结果
+^https:\/\/bootrealtime\.uve\.weibo\.com\/v[23]\/ad\/realtime data-type=text data="{}" header="Content-Type: application/json"
+
+[MITM]
+hostname = %APPEND% api.weibo.cn, bootpreload.uve.weibo.com, bootrealtime.uve.weibo.com
