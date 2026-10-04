@@ -1,0 +1,20 @@
+#!name=京东去广告
+#!desc=去掉京东的弹窗与底部通栏、首页悬浮图标、推荐流里的广告商品和搜索框推荐词。只有规则和响应改写，不含任何脚本。
+
+[Rule]
+# 京东的主接口默认走 443 端口上的非 TLS 私有通道，Surge 无法解密。
+# 只拒绝这类连接，放行正常的 HTTPS，App 会在一秒内退回可解密的 HTTPS。
+AND,((DOMAIN-SUFFIX,jd.com), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP)))),REJECT
+
+[Body Rewrite]
+# 弹窗、底部通栏：清空每个页面的弹层列表，保留页面条目本身
+http-response-jq ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=xview2Config 'if type == "object" and (.data | type) == "object" and (.data.targets | type) == "array" then .data.targets |= map(if type == "object" then .layers = [] else . end) else . end'
+# 首页悬浮图标：去掉 type 为 float 的楼层
+http-response-jq ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=welcomeHome 'if type == "object" and (.floorList | type) == "array" then .floorList |= map(select(type != "object" or .type != "float")) else . end'
+# 推荐流：去掉带广告标记 extension_id 的商品
+http-response-jq ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d+ 'if type == "object" and (.wareInfoList | type) == "array" then .wareInfoList |= map(select((type == "object" and has("extension_id")) | not)) else . end'
+# 搜索框滚动推荐词
+http-response-jq ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=searchBoxWord 'if type == "object" and has("biSearchWordList") then .biSearchWordList = [] else . end'
+
+[MITM]
+hostname = %APPEND% api.m.jd.com

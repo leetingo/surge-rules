@@ -1,6 +1,6 @@
 # Netflix
 # Only Netflix-owned names. No shared cloud suffixes, no shared cloud CIDRs.
-# Surge: RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/netflix.list,Netflix,extended-matching,no-resolve
+# Surge: RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/netflix.list,Netflix,extended-matching,no-resolve
 DOMAIN-SUFFIX,netflix.com
 DOMAIN-SUFFIX,netflix.net
 DOMAIN-SUFFIX,netflix.ca

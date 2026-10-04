@@ -1,6 +1,6 @@
 # Apple Push Notification service (APNs)
 # Push only. Does not include the whole akadns.net suffix or Apple CDN names.
-# Surge: RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/apns.list,"Apple APN",extended-matching,no-resolve
+# Surge: RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/apns.list,"Apple APN",extended-matching,no-resolve
 DOMAIN-SUFFIX,push.apple.com
 DOMAIN-SUFFIX,push-apple.com.akadns.net
 DOMAIN,identity.apple.com
