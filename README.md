@@ -18,7 +18,6 @@
 |---|---|
 | `rules/netflix.list` | 只含 Netflix 自有域名，不含共享云后缀和共享云地址段 |
 | `rules/apns.list` | 只含 Apple 推送服务的域名和地址段 |
-| `rules/meituan-shark.list` | 美团私有长连接接入服务器所在的地址段，只给美团外卖模块用，不单独引用 |
 
 ```
 RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/netflix.list,Netflix,extended-matching,no-resolve
@@ -99,38 +98,24 @@ Surge 对同一个响应只运行一个脚本，所以每个接口只归其中�
 - “模块设置”入口由一条响应改写规则添加，两个模块写的是同一条，已经有入口时不会重复加。
 - 广告按接口返回里的标记判断：`mblogtypename` 为“广告”或“热推”，`is_ad` 或 `ad_state` 为 1，`readtimetype` 为 `adMblog`，`is_ad_card` 为 1，以及 `promotion`、`content_auth_info`、`ads_material_info` 里的广告标记。
 
-## 美团外卖模块
+## 开屏广告模块
 
-| 模块 | 负责的内容 | 安装地址 |
+| 模块 | 状态 | 安装地址 |
 |---|---|---|
-| 美团外卖：去广告 | 开屏广告、启动弹窗、首页第一屏信息流里的广告和推广卡片 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/meituan-waimai.sgmodule` |
+| 美团外卖：去开屏广告 | 可用 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/meituan-waimai.sgmodule` |
+| 京东：去开屏广告（第一步） | 取证版，还不删任何内容 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/jd.sgmodule` |
 
-### 为什么只管启动的头几秒
+### 美团外卖
 
-美团外卖的接口平时不走普通的 HTTP，而是走私有长连接，按 IP 直连接入服务器的 443 端口，Surge 看不到内容。长连接连不上时，大部分接口会退回明文 HTTP，内容是普通 JSON，可以改写。但有一部分接口不会退回，例如“神抢手”页面，长连接不通就直接打不开。
+只做一件事：拦下开屏广告的图片和视频素材。素材下载不下来，开屏广告就无法显示。
 
-所以模块不一直拦着长连接，只在应用启动、或闲置后重新连接的头几秒拦。这段时间里开屏、弹窗和首页第一屏的接口走 HTTP 并被改写，之后放行，其余功能照常。代价是往下滑加载出来的后续内容不经过改写。
+- 图片素材在 `img.meituan.net/bizad/bizad_brandCpt_*`，视频素材在 `s3plus.meituan.net/v1/<桶>/brandcpt-vedio/`。
+- 已经下载到手机里的素材不受影响，会显示到排期结束。想立刻见效，在应用里清一次缓存。
+- 不碰应用的接口。美团外卖的接口走私有长连接，一直拦着它会让“神抢手”等页面打不开；只在启动时短暂拦截的做法试过，效果有限，已经放弃。那一版在提交 `be1cf9d` 里。
 
-### 设置项
+### 京东
 
-| 参数 | 内容 | 默认 |
-|---|---|---|
-| `window` | 启动后拦截长连接的秒数。`0` 完全不拦，也就不去广告；`always` 一直拦，去得最全，但“神抢手”等页面会打不开 | `10` |
-| `upstream` | 退回的接口用什么协议发出去。`https` 由 Surge 升级成 HTTPS；`http` 保持应用原本的明文方式 | `https` |
-| `learn` | 自动学习长连接的接入点 | `true` |
-| `splash` | 开屏广告 | `true` |
-| `popup` | 启动弹窗 | `true` |
-| `feed_ad` | 信息流广告：创意广告卡片，以及付费推广的店铺 | `true` |
-| `feed_promo` | 信息流里的推广卡片：“特价外卖”卡片和活动专题卡片 | `true` |
-
-### 实现
-
-- 两条规则只匹配按 IP 直连、既不是 TLS 也不是 HTTP 的 TCP 连接，并且只在拦截时段内生效，不影响按域名访问的普通请求。
-- **固定清单** `rules/meituan-shark.list`：APNIC 注册库里登记在美团名下的全部网段，外加抓包里见过的云上接入点。
-- **自动学习**：云上的接入点会换，没法预先列全。应用会把连过的接入服务器写进自己的监控上报，这份上报走普通 HTTPS。`scripts/meituan.js` 读出里面的地址记在本机，上报内容原样放行，记下来的只有 IP 和端口。
-- **拦截时段**由规则脚本判断：闲置 30 秒以上之后的第一次连接尝试开始计时，满了设定的秒数就放行。一轮拦截最多持续设定的时长，不会因为应用反复重试而一直拦下去。
-- 外卖接口退回时用的是明文 HTTP，登录凭证会不加密地经过网络。模块用一条改写规则把它升级成 HTTPS 再发出去，应用感觉不到。
-- 付费推广的店铺按接口里的标记判断：带广告标记、广告类型不为 0，或带计费信息。这类店铺有的并不显示“广告”字样。
+京东的主接口同样走私有通道。第一步模块只包含一条规则，让它退回普通 HTTPS，用来抓包找出开屏广告的接口和素材地址。找到之后改成只拦素材的做法。
 
 ## 维护
 

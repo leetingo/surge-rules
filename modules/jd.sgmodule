@@ -1,0 +1,14 @@
+#!name=京东：去开屏广告（第一步）
+#!desc=第一步只做一件事：让京东的主接口从私有通道退回普通的 HTTPS，用来抓包找出开屏广告是哪个接口下发的、素材放在哪里。本版还不删任何内容。
+#!category=京东
+#!author=leetingo
+#!homepage=https://github.com/leetingo/surge-rules
+#!version=0.1.0
+
+[Rule]
+# 京东的主接口默认走 443 端口上的非 TLS 私有通道，Surge 看不到内容。
+# 只拒绝这类连接，放行正常的 HTTPS，应用会在一秒内退回可解密的 HTTPS。
+AND,((DOMAIN-SUFFIX,jd.com), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP)))),REJECT
+
+[MITM]
+hostname = %APPEND% api.m.jd.com
