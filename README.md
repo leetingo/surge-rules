@@ -31,11 +31,9 @@ RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/apns.
 | 模块 | 负责的内容 | 安装地址 |
 |---|---|---|
 | 微博：去广告 | 广告，以及内容里的推广、推荐和提示：开屏、信息流、发现页、微博详情、评论区、消息页、弹窗和引导 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/weibo-adblock.sgmodule` |
-| 微博：界面 | 页面布局：底部标签栏、“我”页面、私信列表、首页直播条 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/weibo-ui.sgmodule` |
+| 微博：界面 | 页面布局：“我”页面、私信列表、首页直播条 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/weibo-ui.sgmodule` |
 
-Surge 对同一个响应只运行一个脚本，所以每个接口通常只归其中一个模块。信息流、详情页和评论区的接口归去广告模块，这几页里不是广告的推荐和提示也放在它里面。
-
-启动配置接口 `push/active` 两个模块都要改。每个模块用一条响应改写规则在内容里留一个带参数的标记，响应改写先于脚本执行，运行的那个脚本据此替另一个模块一并处理，然后去掉标记。
+Surge 对同一个响应只运行一个脚本，所以每个接口只归其中一个模块。信息流、详情页和评论区的接口归去广告模块，这几页里不是广告的推荐和提示也放在它里面。
 
 ### 每一项都能单独设置
 
@@ -82,7 +80,6 @@ Surge 对同一个响应只运行一个脚本，所以每个接口通常只归�
 
 | 参数 | 分组 | 内容 | 默认 |
 |---|---|---|---|
-| `bottom_tabs` | 底部标签栏 | 保留的标签，`all` 表示不改动，“我”始终保留 | `home\|discover\|message\|profile` |
 | `me_vip` | “我”页面 | 会员头图和会员入口 | `true` |
 | `me_shortcuts` | “我”页面 | 保留的快捷入口，`all` 表示不改动 | `album\|like\|watchhistory\|draft` |
 | `me_cards` | “我”页面 | 任务和活动卡片 | `true` |
@@ -91,8 +88,6 @@ Surge 对同一个响应只运行一个脚本，所以每个接口通常只归�
 | `dm_hide` | 私信列表 | 按名称隐藏的入口 | `群推荐\|活动通知` |
 | `live_strip` | 首页 | 直播条里的推荐直播 | `true` |
 | `entry` | 入口 | “我”页面里的“模块设置”入口 | `true` |
-
-底部标签的标识：`home` 首页，`video` 视频，`discover` 发现，`message` 消息，`profile` 我。标签栏的配置在启动时下发，改完要彻底关掉微博再打开。
 
 快捷入口的标识：`album` 我的相册，`like` 赞/收藏，`watchhistory` 浏览记录，`draft` 草稿箱，`pay` 我的钱包，`ordercenter` 微博购订单，`productcenter` 创作中心，`dress` 个性皮肤。
 
