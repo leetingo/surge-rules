@@ -3,13 +3,13 @@
 #!category=美团
 #!author=leetingo
 #!homepage=https://github.com/leetingo/surge-rules
-#!version=0.1.0
+#!version=0.2.0
 
 [Rule]
-# 美团的接口默认走私有长连接（Shark）：直连下面这些服务器的 443 端口，不是 TLS，Surge 看不到内容。
-# 拒绝这类连接后，应用会退回 HTTPS 访问 wmapi.meituan.com。只匹配按 IP 直连、既不是 TLS 也不是 HTTP 的 TCP。
-# 202.90.108.0/22 和 103.37.152.0/22 是美团自己的地址段，119.29.126.181 是它放在腾讯云上的接入点。
-AND,((OR,((IP-CIDR,202.90.108.0/22,no-resolve), (IP-CIDR,103.37.152.0/22,no-resolve), (IP-CIDR,119.29.126.181/32,no-resolve))), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP)))),REJECT
+# 美团的接口默认走私有长连接（Shark）：按 IP 直连服务器的 443 端口，不是 TLS，Surge 看不到内容。
+# 某个请求的长连接被拒后，应用会把这个请求改走 HTTPS；但只要还有别的接入服务器连得上，它就继续用长连接。
+# 所以要把美团名下的地址段全部列进去。只匹配按 IP 直连、既不是 TLS 也不是 HTTP 的 TCP。
+AND,((RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/meituan-shark.list,no-resolve), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP)))),REJECT
 
 [MITM]
 hostname = %APPEND% wmapi.meituan.com

@@ -18,6 +18,7 @@
 |---|---|
 | `rules/netflix.list` | 只含 Netflix 自有域名，不含共享云后缀和共享云地址段 |
 | `rules/apns.list` | 只含 Apple 推送服务的域名和地址段 |
+| `rules/meituan-shark.list` | 美团私有长连接接入服务器所在的地址段，只给美团外卖模块用，不单独引用 |
 
 ```
 RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/netflix.list,Netflix,extended-matching,no-resolve
@@ -104,7 +105,9 @@ Surge 对同一个响应只运行一个脚本，所以每个接口只归其中�
 |---|---|---|
 | 美团外卖：去广告（第一步） | 取证版，还不删广告 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/meituan-waimai.sgmodule` |
 
-美团外卖的接口不走普通的 HTTPS，而是走私有长连接，直连服务器的 443 端口。开屏、弹窗、信息流的数据都在里面，Surge 看不到。第一步只包含一条规则：拒绝这类长连接，让应用退回 HTTPS。确认可行并抓到接口内容之后，再写删广告的规则。
+美团外卖的接口不走普通的 HTTPS，而是走私有长连接，按 IP 直连服务器的 443 端口。开屏、弹窗、信息流的数据都在里面，Surge 看不到。第一步只包含一条规则：拒绝发往美团地址段的这类长连接，让应用退回 HTTPS。确认可行并抓到接口内容之后，再写删广告的规则。
+
+地址段清单在 `rules/meituan-shark.list`，取自 APNIC 注册库里登记在美团名下的网段，外加抓包里见到的云上接入点。应用被拒后会换别的接入服务器重试，所以清单要尽量全；出现新的接入点时往清单里加。
 
 ## 维护
 
