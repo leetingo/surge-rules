@@ -1,26 +1,30 @@
-#!name=美团外卖：去广告（第一步）
-#!desc=第一步只做一件事：让美团外卖的接口从私有长连接改走 HTTPS。这样开屏、弹窗和信息流的数据才看得到、改得了。本版还不删任何广告。
+#!name=美团外卖：去广告
+#!desc=去掉美团外卖的开屏广告、启动弹窗，以及首页第一屏信息流里的广告和推广卡片。只在应用启动的头几秒让接口改走普通 HTTP 以便改写，之后恢复原样，其余功能不受影响。
 #!category=美团
 #!author=leetingo
 #!homepage=https://github.com/leetingo/surge-rules
-#!version=0.3.0
-#!arguments=learn:true,kill:true
-#!arguments-desc=learn: 自动学习长连接接入点\n应用会把连过的接入服务器写进自己的监控上报，脚本读出地址并记下来，之后拒绝发往这些地址的长连接。填 false 则只用仓库里的固定清单。\n\nkill: 学到后断开已连上的长连接\n已经建立的连接不会再过规则，断开后应用重连时才会被拒。填 false 则要等下次启动应用才生效。
+#!version=0.4.0
+#!arguments=window:10,learn:true,splash:true,popup:true,feed_ad:true,feed_promo:true
+#!arguments-desc=开关类填 true 或 false。\n\nwindow: [通道] 启动后拦截长连接的秒数\n美团的接口平时走私有长连接，Surge 看不到内容。应用启动、或闲置后重新连接的头几秒，模块会拒绝长连接，让开屏、弹窗和首页第一屏的接口改走普通 HTTP，才能改写；之后放行，其余功能照常。\n    ├ 10: 默认，拦 10 秒\n    ├ 0: 完全不拦，也就不去广告\n    └ always: 一直拦，去得最全，但“神抢手”等页面会打不开\n\nlearn: [通道] 自动学习接入点\n长连接的接入服务器会换。应用会把连过的服务器写进自己的监控上报，脚本读出地址记在本机，之后在拦截时段里一并拒绝。上报内容原样放行。\n\nsplash: [开屏] 开屏广告\n清空开屏广告列表。\n\npopup: [弹窗] 启动弹窗\n首页加载时下发的营销弹窗。\n\nfeed_ad: [首页] 信息流广告\n创意广告卡片，以及付费推广的店铺。付费推广的店铺有的并不显示“广告”字样。\n\nfeed_promo: [首页] 信息流里的推广卡片\n插在店铺之间的“特价外卖”卡片和活动专题卡片。
 
 [Rule]
 # 美团的接口默认走私有长连接（Shark）：按 IP 直连接入服务器的 443 端口，不是 TLS，Surge 看不到内容。
-# 某个请求的长连接被拒后，应用会把这个请求改走 HTTPS；但只要还有别的接入服务器连得上，它就继续用长连接。
-# 两条规则都只匹配按 IP 直连、既不是 TLS 也不是 HTTP 的 TCP。
+# 长连接被拒时，大部分接口会改走普通的 HTTP 或 HTTPS；少数接口（例如“神抢手”页面）不会，所以只在启动的头几秒拦。
+# 两条规则都只匹配按 IP 直连、既不是 TLS 也不是 HTTP 的 TCP，并且只在拦截时段内生效。
 # 第一条：美团名下的全部地址段，加上抓包里见过的云上接入点。
-AND,((RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/meituan-shark.list,no-resolve), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP)))),REJECT
+AND,((RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/meituan-shark.list,no-resolve), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP))), (SCRIPT,meituan.rule.window)),REJECT
 # 第二条：脚本从应用的监控上报里学到的接入点。云上的接入点会换，没法预先列全。
-AND,((IP-CIDR,0.0.0.0/0,no-resolve), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP))), (SCRIPT,meituan.shark.rule)),REJECT
+AND,((IP-CIDR,0.0.0.0/0,no-resolve), (PROTOCOL,TCP), (NOT,((PROTOCOL,HTTPS))), (NOT,((PROTOCOL,HTTP))), (SCRIPT,meituan.rule.learned)),REJECT
 
 [Script]
-# 判断目的地址是不是已学到的接入点
-meituan.shark.rule = type=rule, engine=jsc, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/meituan.js?v=0.3.0, argument="learn={{{learn}}}&kill={{{kill}}}"
+# 现在是否处于拦截时段
+meituan.rule.window = type=rule, engine=jsc, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/meituan.js?v=0.4.0, argument="role=window&window={{{window}}}"
+# 目的地址是不是已学到的接入点，并且处于拦截时段
+meituan.rule.learned = type=rule, engine=jsc, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/meituan.js?v=0.4.0, argument="role=learned&window={{{window}}}&learn={{{learn}}}"
 # 读应用自己的监控上报，学习它连过的接入点。上报内容原样放行，只在本机读取
-meituan.shark.learn = type=http-request, pattern=^https:\/\/catdot\.dianping\.com\/broker-service\/commandbatch, requires-body=1, max-size=1048576, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/meituan.js?v=0.3.0, argument="learn={{{learn}}}&kill={{{kill}}}"
+meituan.learn = type=http-request, pattern=^https?:\/\/catdot\.dianping\.com\/broker-service\/commandbatch, requires-body=1, max-size=1048576, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/meituan.js?v=0.4.0, argument="role=learn&learn={{{learn}}}"
+# 改写退回普通 HTTP 的接口：开屏广告、启动弹窗、首页信息流
+meituan.rewrite = type=http-response, pattern=^https?:\/\/wmapi\.meituan\.com\/api\/v\d+\/(?:openscreen|home\/feeds\/(?:tabs|mainlist)), requires-body=1, max-size=2097152, timeout=10, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/meituan.js?v=0.4.0, argument="role=rewrite&splash={{{splash}}}&popup={{{popup}}}&feed_ad={{{feed_ad}}}&feed_promo={{{feed_promo}}}"
 
 [MITM]
 hostname = %APPEND% wmapi.meituan.com, catdot.dianping.com

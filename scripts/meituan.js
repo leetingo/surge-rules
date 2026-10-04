@@ -3,22 +3,26 @@
  * 仓库：https://github.com/leetingo/surge-rules
  *
  * 美团的接口默认走私有长连接（Shark）：按 IP 直连接入服务器，不是 TLS，Surge 看不到内容。
- * 长连接连不上时，应用会把请求改走 HTTPS。但接入服务器很多，除了美团自己的地址段，
- * 还有放在各家云厂商上的，而且会换，没法预先列全。
+ * 长连接连不上时，大部分接口会改走普通的 HTTP（外卖接口是明文 HTTP），内容是 JSON，可以改写。
+ * 但有一部分接口（例如“神抢手”页面）不会改走 HTTP，长连接不通就直接失败。
+ * 所以不能一直拦着长连接。做法是：只在应用刚启动或闲置后重新连接的头几秒拦，
+ * 让开屏、弹窗和首页第一屏的请求走 HTTP 并改写，之后放行长连接，其余功能照常。
  *
- * 这个脚本让模块自己学：应用会把“这次连了哪台接入服务器”写进自己的监控上报里，
- * 上报走的是普通 HTTPS。脚本读这份上报，把里面的接入点地址记下来，之后发往这些地址的
- * 长连接一律拒绝。全部数据只在本机处理，记下来的只有 IP 和端口。
- *
- * 两个角色，由 Surge 的脚本类型决定：
- *   http-request  读 catdot.dianping.com 的监控上报，学习接入点；可选地断开已连上的长连接
- *   rule          判断一条连接的目的地址是不是已学到的接入点
+ * 角色由模块传入的 role 参数决定：
+ *   window   规则脚本：现在是否处于拦截时段
+ *   learned  规则脚本：目的地址是不是已学到的接入点，并且处于拦截时段
+ *   learn    读应用自己的监控上报（走普通 HTTPS），把它连过的接入点记在本机
+ *   rewrite  改写退回 HTTP 的接口响应：开屏广告、弹窗、信息流里的广告和推广
  */
 'use strict';
 
-var VERSION = '0.3.0';
+var VERSION = '0.4.0';
 var STORE_KEY = 'leetingo_meituan_shark';
 var MAX_ENDPOINTS = 300;
+var WINDOW_KEY = 'leetingo_meituan_window';
+// 长连接超过这么久没有新的连接尝试，下一次尝试就当作应用重新开始使用
+var IDLE_MS = 30000;
+var BIG_MARK = '@@mtBigInt@@';
 
 function log(msg) { try { console.log('[美团模块] ' + msg); } catch (e) {} }
 
@@ -272,63 +276,215 @@ function extractEndpoints(text) {
   return Object.keys(found);
 }
 
-/* ---------- 两个角色 ---------- */
+/* ---------- 拦截时段 ---------- */
 
-function onRule(args) {
+// 状态：{ start: 本次拦截开始的时间, last: 上一次连接尝试的时间, open: 是否已放行 }
+function loadWindow() {
+  try {
+    var j = JSON.parse($persistentStore.read(WINDOW_KEY) || 'null');
+    if (j && typeof j.start === 'number' && typeof j.last === 'number') return { start: j.start, last: j.last, open: j.open === true };
+  } catch (e) {}
+  return { start: 0, last: 0, open: true };
+}
+
+// 每次有长连接要建立时调用一次，返回这次要不要拦。
+// 拦截中：从开始算起满了时长就放行。放行后：闲置够久再有新的连接尝试，才开始下一轮拦截。
+// 这样拦截最多持续设定的秒数，不会因为应用反复重试而一直拦下去。
+function shouldBlock(args) {
+  var mode = String(args.window === undefined ? '10' : args.window).trim().toLowerCase();
+  if (mode === 'always') return true;
+  var seconds = Number(mode);
+  if (!(seconds > 0)) return false;
+  var now = Date.now();
+  var st = loadWindow();
+  var block;
+  if (!st.open) {
+    block = now - st.start < seconds * 1000;
+    if (!block) st.open = true;
+  } else if (now - st.last > IDLE_MS) {
+    st.start = now;
+    st.open = false;
+    block = true;
+  } else {
+    block = false;
+  }
+  st.last = now;
+  $persistentStore.write(JSON.stringify(st), WINDOW_KEY);
+  return block;
+}
+
+/* ---------- 规则脚本 ---------- */
+
+function onRuleWindow(args) {
+  var matched = false;
+  try { matched = shouldBlock(args); } catch (e) {}
+  $done({ matched: matched });
+}
+
+function onRuleLearned(args) {
   var matched = false;
   try {
-    if (isOn(args.learn, true) && $request && $request.hostname) {
-      matched = !!loadEndpoints()[$request.hostname + ':' + $request.destPort];
+    if (isOn(args.learn, true) && $request && $request.hostname && loadEndpoints()[$request.hostname + ':' + $request.destPort]) {
+      matched = shouldBlock(args);
     }
   } catch (e) {}
   $done({ matched: matched });
 }
 
-function onReport(args) {
-  var finished = false;
-  function finish() { if (!finished) { finished = true; $done({}); } }
+/* ---------- 学习接入点 ---------- */
+
+function onLearn(args) {
   try {
     var body = $request.body;
-    if (!isOn(args.learn, true) || typeof body !== 'string' || body.length === 0) return finish();
-    var text = decodeReport(body);
-    if (!text) return finish();
-    var found = extractEndpoints(text);
-    if (found.length === 0) return finish();
-
-    var endpoints = loadEndpoints();
-    var now = Math.floor(Date.now() / 1000);
-    var fresh = found.filter(function (ep) { return !endpoints[ep]; });
-    found.forEach(function (ep) { endpoints[ep] = now; });
-    saveEndpoints(endpoints);
-    if (fresh.length) log('新学到 ' + fresh.length + ' 个长连接接入点：' + fresh.join('、'));
-
-    // 已经连上的长连接不会再过规则，要主动断开，应用重连时才会被拒
-    if (!isOn(args.kill, true) || typeof $httpAPI !== 'function') return finish();
-    setTimeout(finish, 1500);
-    $httpAPI('GET', '/v1/requests/active', null, function (result) {
-      try {
-        var requests = (result && result.requests) || [];
-        var killed = 0;
-        for (var i = 0; i < requests.length; i++) {
-          var r = requests[i];
-          if (!r || String(r.method).toUpperCase() !== 'TCP' || !endpoints[r.remoteHost]) continue;
-          killed++;
-          $httpAPI('POST', '/v1/requests/kill', { id: r.id }, function () {});
-        }
-        if (killed) log('断开 ' + killed + ' 条正在使用的长连接');
-      } catch (e) {}
-      finish();
-    });
+    if (isOn(args.learn, true) && typeof body === 'string' && body.length > 0) {
+      var text = decodeReport(body);
+      var found = text ? extractEndpoints(text) : [];
+      if (found.length > 0) {
+        var endpoints = loadEndpoints();
+        var now = Math.floor(Date.now() / 1000);
+        var fresh = found.filter(function (ep) { return !endpoints[ep]; });
+        found.forEach(function (ep) { endpoints[ep] = now; });
+        saveEndpoints(endpoints);
+        if (fresh.length) log('新学到 ' + fresh.length + ' 个长连接接入点：' + fresh.join('、'));
+      }
+    }
   } catch (e) {
     log('读取监控上报出错，已原样放行：' + (e && e.message));
-    finish();
+  }
+  $done({});
+}
+
+/* ---------- 改写响应 ---------- */
+
+function isObj(x) { return x !== null && typeof x === 'object' && !Array.isArray(x); }
+
+// 超过 16 位的整数先换成带标记的字符串，输出时换回来，避免丢精度
+function protectBigInts(text) {
+  if (!/\d{16}/.test(text)) return text;
+  var out = '', last = 0, i = 0, n = text.length, inStr = false;
+  while (i < n) {
+    var c = text.charCodeAt(i);
+    if (inStr) {
+      if (c === 92) { i += 2; continue; }
+      if (c === 34) inStr = false;
+      i++;
+      continue;
+    }
+    if (c === 34) { inStr = true; i++; continue; }
+    if (c === 45 || (c >= 48 && c <= 57)) {
+      var j = i + 1;
+      while (j < n) { var d = text.charCodeAt(j); if (d >= 48 && d <= 57) j++; else break; }
+      var next = j < n ? text.charCodeAt(j) : 0;
+      var digits = j - i - (c === 45 ? 1 : 0);
+      if (digits >= 16 && next !== 46 && next !== 101 && next !== 69) {
+        out += text.slice(last, i) + '"' + BIG_MARK + text.slice(i, j) + '"';
+        last = j;
+      } else {
+        while (j < n) {
+          var e = text.charCodeAt(j);
+          if ((e >= 48 && e <= 57) || e === 46 || e === 101 || e === 69 || e === 43 || e === 45) j++; else break;
+        }
+      }
+      i = j;
+      continue;
+    }
+    i++;
+  }
+  return out + text.slice(last);
+}
+function restoreBigInts(text) {
+  if (text.indexOf(BIG_MARK) < 0) return text;
+  return text.replace(/"@@mtBigInt@@(-?\d+)"/g, '$1');
+}
+
+// 开屏：data.start_picture 是一段 JSON 文本，里面的 ad 数组就是开屏广告
+function rewriteOpenScreen(obj, cfg) {
+  if (!cfg.splash || !isObj(obj) || !isObj(obj.data) || typeof obj.data.start_picture !== 'string') return 0;
+  var inner;
+  try { inner = JSON.parse(obj.data.start_picture); } catch (e) { return 0; }
+  if (!isObj(inner) || !Array.isArray(inner.ad) || inner.ad.length === 0) return 0;
+  var removed = inner.ad.length;
+  inner.ad = [];
+  obj.data.start_picture = JSON.stringify(inner);
+  return removed;
+}
+
+// 信息流里的一张卡片是不是广告或推广
+function feedModuleKind(mod) {
+  if (!isObj(mod)) return null;
+  var id = typeof mod.module_id === 'string' ? mod.module_id : '';
+  if (id.indexOf('creative_ad_card') === 0) return 'ad';
+  if (id.indexOf('home_page_side_insert_card') === 0 || id.indexOf('operation_topic_module') === 0) return 'promo';
+  if (typeof mod.string_data !== 'string' || mod.string_data.indexOf('"charge_info"') < 0 && mod.string_data.indexOf('"ad_mark"') < 0 && mod.string_data.indexOf('"ad_type"') < 0) return null;
+  var data;
+  try { data = JSON.parse(mod.string_data); } catch (e) { return null; }
+  if (!isObj(data) || !('poi_name' in data || 'poi_id_str' in data)) return null;
+  // 付费推广的店铺：带广告标记、广告类型不为 0，或带计费信息。有的并不显示“广告”字样
+  if (data.ad_mark === true) return 'ad';
+  if (data.ad_type !== undefined && data.ad_type !== null && data.ad_type !== 0 && data.ad_type !== '0' && data.ad_type !== '') return 'ad';
+  if (typeof data.charge_info === 'string' && data.charge_info.length > 0) return 'ad';
+  return null;
+}
+
+function rewriteFeed(obj, cfg) {
+  if (!isObj(obj) || !isObj(obj.data)) return 0;
+  var changed = 0;
+  var data = obj.data;
+  if (cfg.popup && isObj(data.json_data) && Array.isArray(data.json_data.marketing_window) && data.json_data.marketing_window.length > 0) {
+    changed += data.json_data.marketing_window.length;
+    data.json_data.marketing_window = [];
+  }
+  if (Array.isArray(data.module_list) && (cfg.feed_ad || cfg.feed_promo)) {
+    var kept = data.module_list.filter(function (mod) {
+      var kind = feedModuleKind(mod);
+      return !((kind === 'ad' && cfg.feed_ad) || (kind === 'promo' && cfg.feed_promo));
+    });
+    if (kept.length !== data.module_list.length) {
+      changed += data.module_list.length - kept.length;
+      data.module_list = kept;
+    }
+  }
+  return changed;
+}
+
+function onRewrite(args) {
+  try {
+    var url = $request.url || '';
+    var body = $response.body;
+    if (typeof body !== 'string' || body.length === 0) return $done({});
+    var cfg = {
+      splash: isOn(args.splash, true), popup: isOn(args.popup, true),
+      feed_ad: isOn(args.feed_ad, true), feed_promo: isOn(args.feed_promo, true)
+    };
+    var handler = null;
+    if (/\/api\/v\d+\/openscreen/.test(url)) handler = rewriteOpenScreen;
+    else if (/\/api\/v\d+\/home\/feeds\/(?:tabs|mainlist)/.test(url)) handler = rewriteFeed;
+    if (!handler) return $done({});
+    var obj;
+    try { obj = JSON.parse(protectBigInts(body)); } catch (e) { return $done({}); }
+    var changed = handler(obj, cfg);
+    if (!changed) return $done({});
+    log(url.replace(/\?.*$/, '').replace(/^https?:\/\/[^/]+/, '') + ' 去掉 ' + changed + ' 项');
+    $done({ body: restoreBigInts(JSON.stringify(obj)) });
+  } catch (e) {
+    log('改写出错，已放行原始内容：' + (e && e.message));
+    $done({});
   }
 }
 
 (function main() {
   var args = parseArgs(typeof $argument === 'string' ? $argument : '');
-  var type = (typeof $script !== 'undefined' && $script && $script.type) || '';
-  var isHTTP = typeof $request !== 'undefined' && $request && typeof $request.url === 'string' && /^https?:/i.test($request.url);
-  if (type === 'rule' || (type === '' && !isHTTP)) return onRule(args);
-  return onReport(args);
+  var role = args.role;
+  if (!role) {
+    // 没有传 role 时按脚本类型和请求推断
+    var type = (typeof $script !== 'undefined' && $script && $script.type) || '';
+    var isHTTP = typeof $request !== 'undefined' && $request && typeof $request.url === 'string' && /^https?:/i.test($request.url);
+    if (typeof $response !== 'undefined') role = 'rewrite';
+    else if (type === 'rule' || !isHTTP) role = 'learned';
+    else role = 'learn';
+  }
+  if (role === 'window') return onRuleWindow(args);
+  if (role === 'learned') return onRuleLearned(args);
+  if (role === 'rewrite') return onRewrite(args);
+  return onLearn(args);
 })();
