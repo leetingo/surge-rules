@@ -26,7 +26,7 @@ RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/apns.
 
 | 文件 | 用途 |
 |---|---|
-| `modules/weibo.sgmodule` | 微博去广告：开屏广告、首页和热门信息流里的广告微博、签到弹窗、悬浮窗。只有规则、响应改写和本地映射，不含脚本 |
+| `modules/weibo.sgmodule` | 微博去广告：开屏广告、信息流广告、关注流里的推荐微博、详情页广告卡片、发现页轮播窗、“我”页面的活动入口、推荐直播条、签到弹窗、悬浮窗。只有规则、响应改写和本地映射，不含脚本 |
 
 安装地址：
 
@@ -34,7 +34,7 @@ RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/apns.
 https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/weibo.sgmodule
 ```
 
-微博模块按接口返回里的广告标记过滤，判断条件是 `mblogtypename` 为“广告”、`is_ad` 或 `ad_state` 为 1、`readtimetype` 为 `adMblog`。需要已安装并信任 Surge 的 MITM 证书。
+微博模块按接口返回里的标记过滤：广告微博看 `mblogtypename` 为“广告”、`is_ad` 或 `ad_state` 为 1、`readtimetype` 为 `adMblog`；广告卡片看 `is_ad_card`；关注流里的推荐微博看作者未关注且带推荐标题。需要已安装并信任 Surge 的 MITM 证书。
 
 ## 维护
 
