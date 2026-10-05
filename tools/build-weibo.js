@@ -11,16 +11,11 @@ const vm = require('vm');
 const root = path.join(__dirname, '..');
 const ctx = { $done() {}, console: { log() {} } };
 vm.runInNewContext(fs.readFileSync(path.join(root, 'scripts/weibo.js'), 'utf8'), ctx);
-const { SCHEMA, VERSION, ENTRY_ID, PAGE_PATH, RESPONSE_ROUTES, BLOCK_ROUTES } = ctx;
+const { SCHEMA, VERSION, ENTRY_ID, PAGE_PATH } = ctx;
 
 const RAW = 'https://raw.githubusercontent.com/leetingo/surge-rules/main';
 const SCRIPT = `${RAW}/scripts/weibo.js?v=${VERSION}`;
 const PAGE_URL = `https://api.weibo.cn${PAGE_PATH}`;
-
-// 模块匹配范围直接来自脚本路由，新增处理器时不会漏掉 Surge 的入口。
-function routePattern(routes, mod) {
-  return '^(?:' + routes.filter((r) => r.mod === mod).map((r) => r.re.source.replace(/^\^/, '')).join('|') + ')';
-}
 
 function defaultText(item) {
   if (item.type === 'bool') return item.def ? 'true' : 'false';
@@ -111,15 +106,15 @@ const ad = header('ad', '去掉微博的广告，以及内容里的推广、推�
   ...ENTRY_RULE,
   '',
   '[Script]',
-  '# 改写响应：开屏、信息流、他人主页、转发和视频流、发现页、详情页、评论区、消息页、启动配置、签到',
-  `weibo.ad.response = type=http-response, pattern=${routePattern(RESPONSE_ROUTES, 'ad')}, requires-body=1, max-size=2097152, timeout=10, script-path=${SCRIPT}, argument=${scriptArgument('ad')}`,
+  '# 改写响应：开屏、信息流、他人主页、发现页、详情页、评论区、消息页、启动配置、签到',
+  `weibo.ad.response = type=http-response, pattern=^https:\\/\\/(?:api\\.weibo\\.cn\\/2\\/(?:profile\\/container_timeline(?:\\?|$)|statuses\\/container_(?:timeline|detail\\?|detail_comment|positive)|search\\/(?:finder\\?|container_timeline)|messageflow\\/notice|push\\/active|checkin\\/show)|bootpreload\\.uve\\.weibo\\.com\\/v[12]\\/ad\\/preload), requires-body=1, max-size=2097152, timeout=10, script-path=${SCRIPT}, argument=${scriptArgument('ad')}`,
   '# 直接返回空结果的请求：开屏广告的实时请求、通知开关引导的配置、热门微博聚光',
-  `weibo.ad.block = type=http-request, pattern=${routePattern(BLOCK_ROUTES, 'ad')}, script-path=${SCRIPT}, argument=${scriptArgument('ad')}`,
+  `weibo.ad.block = type=http-request, pattern=^https:\\/\\/(?:bootrealtime\\.uve\\.weibo\\.com\\/v[23]\\/ad\\/realtime|api\\.weibo\\.cn\\/2\\/(?:push\\/daily|hot\\/hours_spotlight\\?)), script-path=${SCRIPT}, argument=${scriptArgument('ad')}`,
   '# 微博里的管理页面，以及它读写设置用的接口',
   settingsLine('ad'),
   '',
   '[MITM]',
-  'hostname = %APPEND% api.weibo.cn, mapi.weibo.com, bootpreload.uve.weibo.com, bootrealtime.uve.weibo.com',
+  'hostname = %APPEND% api.weibo.cn, bootpreload.uve.weibo.com, bootrealtime.uve.weibo.com',
   '',
 ]);
 
@@ -129,7 +124,7 @@ const ui = header('ui', '精简微博的页面布局：“我”页面、私信�
   '',
   '[Script]',
   '# 改写响应：“我”页面、私信列表、首页直播条',
-  `weibo.ui.response = type=http-response, pattern=${routePattern(RESPONSE_ROUTES, 'ui')}, requires-body=1, max-size=2097152, timeout=10, script-path=${SCRIPT}, argument=${scriptArgument('ui')}`,
+  `weibo.ui.response = type=http-response, pattern=^https:\\/\\/api\\.weibo\\.cn\\/2\\/(?:profile\\/me|direct_messages\\/user_list|live\\/media_homelist), requires-body=1, max-size=2097152, timeout=10, script-path=${SCRIPT}, argument=${scriptArgument('ui')}`,
   '# 微博里的管理页面，以及它读写设置用的接口',
   settingsLine('ui'),
   '',

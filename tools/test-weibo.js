@@ -32,11 +32,11 @@ function run(endpoint, input, args = '', saved = null) {
   return output.body === undefined ? body : output.body;
 }
 
-test('他人主页：去掉嵌套广告，保留未关注用户、置顶和普通推荐', () => {
+test('他人主页：过滤顶层广告，保留普通转发、置顶、推荐和未知容器', () => {
   const pinned = { category: 'feed', data: { ...normal, id: 'pinned', readtimetype: 'adMblog', ad_marked: false }, isTop: true };
   const recommendation = { category: 'card', data: { card_type: 10, desc: '可能感兴趣的人' } };
   const input = { userInfo: { name: '用户' }, items: [pinned, feed(ad), { category: 'group', items: [feed(normal), feed(ad)] }, recommendation] };
-  const expected = { ...input, items: [pinned, { category: 'group', items: [feed(normal)] }, recommendation] };
+  const expected = { ...input, items: [pinned, { category: 'group', items: [feed(normal), feed(ad)] }, recommendation] };
   assert.deepEqual(JSON.parse(run('profile/container_timeline?uid=123', input, 'follow_rec=all')), expected);
 });
 
@@ -45,46 +45,6 @@ test('主页广告开关独立，关闭后原样放行', () => {
   assert.equal(run('profile/container_timeline?uid=123', input, 'profile_ad=false'), JSON.stringify(input));
   assert.deepEqual(JSON.parse(run('profile/container_timeline?uid=123', input, 'feed_ad=false')), { items: [feed(normal)] });
   assert.equal(run('profile/container_timeline?uid=123', input, 'profile_ad=true', { profile_ad: false }), JSON.stringify(input));
-});
-
-test('卡片列表递归去广告，保留无广告标记的卡片和分页信息', () => {
-  const card = { card_type: 9, mblog: normal };
-  const banner = { card_type: 118, title: '正常横幅' };
-  const input = { cards: [{ card_group: [card, { card_type: 9, mblog: ad }, banner] }], cardlistInfo: { since_id: 'next' } };
-  for (const endpoint of ['cardlist?containerid=100', 'page?containerid=100', 'video/community_tab?type=1']) {
-    assert.deepEqual(JSON.parse(run(endpoint, input)), { ...input, cards: [{ card_group: [card, banner] }] });
-    assert.equal(run(endpoint, input, 'feed_ad=false'), JSON.stringify(input));
-  }
-});
-
-test('旧版时间线、转发流和搜索：兼容各自列表结构', () => {
-  for (const endpoint of ['statuses/unread_hot_timeline?', 'statuses/friends/timeline?', 'statuses/unread_friends_timeline?', 'groups/timeline?', 'statuses/video_mixtimeline?', 'video/tiny_stream_video_list?']) {
-    const input = { statuses: [normal, ad], ad: { id: 'slot' }, advertises: [ad], next_cursor: 123 };
-    assert.deepEqual(JSON.parse(run(endpoint, input)), { statuses: [normal], next_cursor: 123 });
-  }
-  assert.deepEqual(JSON.parse(run('statuses/repost_timeline?', { reposts: [ad, normal], hot_reposts: [normal, ad] })), { reposts: [normal], hot_reposts: [normal] });
-  for (const endpoint of ['searchall?', 'search/container_discover?', 'flowlist?']) {
-    assert.deepEqual(JSON.parse(run(endpoint, { items: [feed(ad), feed(normal)] })), { items: [feed(normal)] });
-  }
-});
-
-test('视频预加载：过滤每组广告，保留普通视频及翻页信息', () => {
-  const input = { lists: [{ items: [feed(ad), feed(normal)], moreInfo: { since_id: 'next' } }] };
-  assert.deepEqual(JSON.parse(run('video/flow_stream_cache?', input)), { lists: [{ items: [feed(normal)], moreInfo: { since_id: 'next' } }] });
-});
-
-test('旧版评论广告：不删除普通评论及相关内容', () => {
-  const comment = { id: 'comment', text: '评论' };
-  const related = { adType: '相关内容', text: '相关内容' };
-  const input = { datas: [comment, { adType: '广告' }, { adType: '热推' }, related] };
-  assert.deepEqual(JSON.parse(run('comments/build_comments?', input)), { datas: [comment, related] });
-  assert.equal(run('comments/build_comments?', input, 'comment_ad=false'), JSON.stringify(input));
-});
-
-test('旧版详情：只移除明确广告，保留正文、操作菜单和普通卡片', () => {
-  const input = { head_cards: [{ is_ad: 1 }, { title: '普通卡片' }], trend: { extra_struct: { extBtnInfo: { btn_picurl: 'https://h5.sinaimg.cn/timeline_icon_ad_delete.png' } } }, custom_action_list: [{ type: 'share' }], text: '正文' };
-  assert.deepEqual(JSON.parse(run('statuses/extend?', input)), { head_cards: [{ title: '普通卡片' }], custom_action_list: input.custom_action_list, text: '正文' });
-  assert.equal(run('statuses/extend?', input, 'detail_ad=false'), JSON.stringify(input));
 });
 
 test('新增处理保留大整数，异常响应原样放行', () => {
@@ -101,21 +61,16 @@ test('模块不匹配写入接口、个人中心、用户资料和无关域名',
   }
 });
 
-test('关闭新增过滤时不改变内容，支持 mapi 域名且与界面模块互斥', () => {
-  const uiText = fs.readFileSync(path.join(root, 'modules/weibo-ui.sgmodule'), 'utf8');
-  const uiPattern = new RegExp(uiText.match(/weibo\.ui\.response = .*?pattern=([^,]+)/)[1]);
-  const input = { items: [feed(ad), feed(normal)], statuses: [ad, normal], lists: [{ items: [feed(ad)] }] };
-  for (const endpoint of ['flowlist', 'cardlist', 'page', 'statuses/repost_timeline', 'video/flow_stream_cache', 'searchall', 'search/container_discover']) {
-    assert.equal(run(endpoint, input, 'feed_ad=false&discover_banner=false&notify_nag=false'), JSON.stringify(input));
-    assert.equal(uiPattern.test('https://api.weibo.cn/2/' + endpoint), false);
+test('未获实际广告 HAR 验证的扩展接口不发布', () => {
+  for (const endpoint of ['cardlist', 'page', 'flowlist', 'groups/timeline', 'statuses/friends/timeline', 'statuses/unread_friends_timeline', 'statuses/unread_hot_timeline', 'statuses/repost_timeline', 'statuses/video_mixtimeline', 'video/community_tab', 'video/tiny_stream_video_list', 'video/flow_stream_cache', 'comments/build_comments', 'statuses/extend', 'searchall', 'search/container_discover']) {
+    assert.equal(pattern.test('https://api.weibo.cn/2/' + endpoint + '?'), false, endpoint);
   }
-  assert.equal(pattern.test('https://mapi.weibo.com/2/profile/container_timeline?'), true);
-  assert.equal(uiPattern.test('https://api.weibo.cn/2/profile/container_timeline?'), false);
+  assert.equal(pattern.test('https://mapi.weibo.com/2/profile/container_timeline?'), false);
 });
 
-// 可选：在本机传入实际抓包，HAR 本身不复制到仓库，也不输出 URL 查询参数。
-if (process.env.WEIBO_HAR_PATH) {
+// 必须传入真实抓包才能通过发布验证；不复制 HAR 到仓库，不输出查询参数。
   test('HAR 回放：主页只移除广告，其余条目和全部元数据保持一致', () => {
+    assert.ok(process.env.WEIBO_HAR_PATH, '发布验证必须设置 WEIBO_HAR_PATH，合成测试不能替代真实 HAR');
     const entries = JSON.parse(fs.readFileSync(process.env.WEIBO_HAR_PATH, 'utf8')).log.entries;
     let profiles = 0;
     let adverts = 0;
@@ -137,4 +92,3 @@ if (process.env.WEIBO_HAR_PATH) {
     assert.ok(adverts > 0, 'HAR 中必须有实际广告');
     console.log(`HAR: ${profiles} 个主页响应，精确移除 ${adverts} 条广告`);
   });
-}
