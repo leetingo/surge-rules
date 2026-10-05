@@ -30,7 +30,7 @@ RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/apns.
 
 | 模块 | 负责的内容 | 安装地址 |
 |---|---|---|
-| 微博：去广告 | 广告，以及内容里的推广、推荐和提示：开屏、信息流、发现页、微博详情、评论区、消息页、弹窗和引导 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/weibo-adblock.sgmodule` |
+| 微博：去广告 | 广告，以及内容里的推广、推荐和提示：开屏、信息流、他人主页、发现页、微博详情、评论区、消息页、弹窗和引导 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/weibo-adblock.sgmodule` |
 | 微博：界面 | 页面布局：“我”页面、私信列表、首页直播条 | `https://raw.githubusercontent.com/leetingo/surge-rules/main/modules/weibo-ui.sgmodule` |
 
 Surge 对同一个响应只运行一个脚本，所以每个接口只归其中一个模块。信息流、详情页和评论区的接口归去广告模块，这几页里不是广告的推荐和提示也放在它里面。
@@ -52,6 +52,7 @@ Surge 对同一个响应只运行一个脚本，所以每个接口只归其中�
 |---|---|---|---|
 | `splash` | 开屏 | 开屏广告 | `true` |
 | `feed_ad` | 信息流 | 信息流广告 | `true` |
+| `profile_ad` | 个人主页 | 他人个人主页时间线里带广告标记的微博和卡片 | `true` |
 | `follow_rec` | 信息流 | 关注流里的推荐微博：`titled` 只去掉带推荐标题的，`all` 未关注的一律去掉，`off` 不处理 | `titled` |
 | `notify_nag` | 信息流 | “开启通知”横幅 | `true` |
 | `discover_banner` | 发现页 | 顶部轮播窗 | `true` |
@@ -97,6 +98,20 @@ Surge 对同一个响应只运行一个脚本，所以每个接口只归其中�
 - 管理页面保存的值放在 Surge 的持久化存储里，键是 `leetingo_weibo_ad` 和 `leetingo_weibo_ui`。
 - “模块设置”入口由一条响应改写规则添加，两个模块写的是同一条，已经有入口时不会重复加。
 - 广告按接口返回里的标记判断：`mblogtypename` 为“广告”或“热推”，`is_ad` 或 `ad_state` 为 1，`readtimetype` 为 `adMblog`，`is_ad_card` 为 1，以及 `promotion`、`content_auth_info`、`ads_material_info` 里的广告标记。
+- 模块的响应和请求脚本匹配范围由 `scripts/weibo.js` 的路由表生成，避免新增处理器后漏掉模块入口。
+
+### 5.2.0 补充覆盖
+
+- 他人主页：新增 `profile/container_timeline`，由 `profile_ad` 单独控制，不套用首页的“未关注一律去掉”。抓包中普通历史转发也带有 `readtimetype=adMblog`，所以主页不会仅凭这一项删除内容。
+- 列表：补上旧版热门、关注、分组、转发、卡片式列表、搜索及视频列表接口，兼容 `items`、`cards/card_group`、`statuses`、`reposts/hot_reposts`，由 `feed_ad` 控制。只过滤明确的广告标记，不按卡片类型一律删除。
+- 视频预加载：处理抓包中出现的 `video/flow_stream_cache` 的 `lists[].items`，保留正常视频与分页信息。
+- 旧版评论和详情：补上 `comments/build_comments` 和 `statuses/extend`；评论只去广告、热推，详情只去明确广告及广告关闭图标标识的推广内容。沿用 `comment_ad`、`detail_ad`、`detail_reward`。
+
+对照来源：[可莉插件中心](https://hub.kelee.one/) 的微博条目署名 RuCu6、zmqcherish；当前官方 `.lpx` 下载返回 403，因此本次接口和旧版结构参考其署名作者 [zmqcherish 的公开脚本](https://github.com/zmqcherish/proxy-script/blob/main/weibo_main.js)（v0515.1），并结合本机 HAR。没有宣称已与可莉当前版本完整对齐。
+
+验证：`2026-10-05-104213.har` 的真实主页响应有 26 条记录，离线回放精确移除 2 条明确广告，另外 24 条及所有分页、导航元数据保持不变；关闭 `profile_ad` 时响应逐字保留。其他补充接口有合成回归测试，覆盖正常内容保留、独立开关、大整数和异常响应，尚未逐页完成手机实测。
+
+回归检查：`node --test tools/test-weibo.js`。可设置 `WEIBO_HAR_PATH` 为本机含主页广告的 HAR 路径，额外执行真实响应回放。原始 HAR 不放入仓库。
 
 ## 开屏广告模块
 

@@ -15,7 +15,7 @@
  */
 'use strict';
 
-var VERSION = '5.1.1';
+var VERSION = '5.2.0';
 var PAGE_PATH = '/surge-rules/weibo/settings';
 var API_PATH = '/surge-rules/weibo/api/';
 var ENTRY_ID = '100505_-_modulesettings';
@@ -30,7 +30,9 @@ var SCHEMA = {
       { key: 'splash', group: '开屏', title: '开屏广告', type: 'bool', def: true,
         desc: '清空预加载的开屏广告，并拦下开屏广告的实时请求。' },
       { key: 'feed_ad', group: '信息流', title: '信息流广告', type: 'bool', def: true,
-        desc: '首页、热门、搜索结果和发现页里的广告微博与广告卡片。' },
+        desc: '首页、热门、分组、搜索、超话、转发列表和视频流里的广告微博与广告卡片。' },
+      { key: 'profile_ad', group: '个人主页', title: '他人个人主页广告', type: 'bool', def: true,
+        desc: '个人主页时间线里带广告标记的微博和卡片。保留正常微博、置顶内容和普通推荐。' },
       { key: 'follow_rec', group: '信息流', title: '关注流里的推荐微博', type: 'select', def: 'titled',
         options: [['titled', '只去掉带推荐标题的'], ['all', '未关注的一律去掉'], ['off', '不处理']],
         desc: '带推荐标题指“关注 X 的人也关注”这一类。选“未关注的一律去掉”时，你关注的超话里的帖子和你自己的微博也可能被去掉。' },
@@ -258,11 +260,11 @@ function restoreBigInts(text) {
 
 /* ---------- 广告判定 ---------- */
 
-function isAdData(d) {
+function isAdData(d, allowReadtime) {
   if (!isObj(d)) return false;
   if (d.mblogtypename === '广告' || d.mblogtypename === '热推') return true;
   if (d.is_ad === 1 || d.is_ad === '1' || d.ad_state === 1 || d.ad_state === '1') return true;
-  if (d.readtimetype === 'adMblog') return true;
+  if (allowReadtime !== false && d.readtimetype === 'adMblog') return true;
   if (d.is_ad_card === 1) return true;
   var p = d.promotion;
   if (isObj(p)) {
@@ -275,7 +277,9 @@ function isAdData(d) {
   if (isObj(m) && m.is_ads === true) return true;
   return false;
 }
-function isAdItem(it) { return isObj(it) && isAdData(it.data); }
+function isAdItem(it, allowReadtime) {
+  return isObj(it) && (isAdData(it, allowReadtime) || isAdData(it.data, allowReadtime) || isAdData(it.mblog, allowReadtime));
+}
 function isBanner(it) { return isObj(it) && isObj(it.data) && it.data.card_type === 118 && it.data.itemid === 'finder_window'; }
 function isNag(it) {
   if (!isObj(it) || it.category !== 'cell' || !isObj(it.title)) return false;
@@ -368,6 +372,62 @@ function adFinder(obj, cfg) {
 
 function adSearchTimeline(obj, cfg) {
   cleanItems(obj, feedDrop(cfg));
+  if (cfg.feed_ad) cleanCards(obj);
+}
+
+// 旧式列表用 cards/card_group 包装微博；只检查卡片本身和直接承载的微博，
+// 不深入 retweeted_status，避免因为引用了广告微博而删掉正常用户的转发。
+function cleanCards(node, drop) {
+  if (!isObj(node)) return;
+  drop = drop || isAdItem;
+  ['cards', 'card_group'].forEach(function (key) {
+    filterArray(node, key, drop);
+    if (isArr(node[key])) node[key].forEach(function (card) { cleanCards(card, drop); });
+  });
+}
+
+function adProfile(obj, cfg) {
+  if (!cfg.profile_ad) return;
+  // 实际主页里普通历史转发也会带 adMblog，不能仅凭阅读计时分类删除。
+  var drop = function (item) { return isAdItem(item, false); };
+  cleanItems(obj, drop);
+  cleanCards(obj, drop);
+}
+
+function adLegacyFeed(obj, cfg) {
+  if (!cfg.feed_ad || !isObj(obj)) return;
+  cleanItems(obj, isAdItem);
+  cleanCards(obj);
+  ['statuses', 'reposts', 'hot_reposts'].forEach(function (key) { filterArray(obj, key, isAdData); });
+  // 这些是旧版时间线单独下发的广告槽位，分页信息和普通 trends 保持不变。
+  removeKey(obj, 'ad');
+  removeKey(obj, 'advertises');
+}
+
+function adVideoCache(obj, cfg) {
+  if (!cfg.feed_ad || !isObj(obj) || !isArr(obj.lists)) return;
+  obj.lists.forEach(function (list) { cleanItems(list, isAdItem); });
+}
+
+function adLegacyComment(obj, cfg) {
+  if (!cfg.comment_ad) return;
+  filterArray(obj, 'datas', function (item) {
+    return isObj(item) && (item.adType === '广告' || item.adType === '热推' || isAdItem(item) || isAdData(item.blog));
+  });
+}
+
+function adLegacyDetail(obj, cfg) {
+  if (!isObj(obj)) return;
+  if (cfg.detail_reward) removeKey(obj, 'reward_info');
+  if (!cfg.detail_ad) return;
+  filterArray(obj, 'head_cards', isAdItem);
+  var trend = obj.trend;
+  if (!isObj(trend)) return;
+  var extra = trend.extra_struct;
+  var button = isObj(extra) && extra.extBtnInfo;
+  if (isAdItem(trend) || (isObj(button) && typeof button.btn_picurl === 'string' && button.btn_picurl.indexOf('timeline_icon_ad_delete') >= 0)) {
+    removeKey(obj, 'trend');
+  }
 }
 
 function adDetail(obj, cfg) {
@@ -513,8 +573,14 @@ function uiLive(obj, cfg) {
 var RESPONSE_ROUTES = [
   { mod: 'ad', re: /^https:\/\/bootpreload\.uve\.weibo\.com\/v[12]\/ad\/preload/, fn: adSplashPreload },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/statuses\/container_timeline/, fn: adTimeline },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/profile\/container_timeline(?:\?|$)/, fn: adProfile },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/(?:cardlist|page|flowlist|groups\/timeline|statuses\/(?:friends\/timeline|unread_friends_timeline|unread_hot_timeline|repost_timeline|video_mixtimeline)|video\/(?:community_tab|tiny_stream_video_list))(?:\?|$)/, fn: adLegacyFeed },
+  { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/video\/flow_stream_cache(?:\?|$)/, fn: adVideoCache },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/comments\/build_comments(?:\?|$)/, fn: adLegacyComment },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/statuses\/extend(?:\?|$)/, fn: adLegacyDetail },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/search\/finder\?/, fn: adFinder },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/search\/container_timeline/, fn: adSearchTimeline },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/(?:searchall|search\/container_discover)(?:\?|$)/, fn: adSearchTimeline },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/statuses\/container_detail\?/, fn: adDetail },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/statuses\/container_detail_comment/, fn: adComment },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/statuses\/container_positive/, fn: adPositive },

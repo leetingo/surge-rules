@@ -3,7 +3,7 @@
 #!category=微博
 #!author=leetingo
 #!homepage=https://github.com/leetingo/surge-rules
-#!version=5.1.1
+#!version=5.2.0
 #!arguments=me_vip:true,me_shortcuts:album|like|watchhistory|draft,me_cards:true,me_wallet:true,me_recommend:true,dm_hide:群推荐|活动通知,live_strip:true,entry:true
 #!arguments-desc=开关类填 true 或 false。在微博里“我”页面的“模块设置”中改过的项目，优先于这里的值。\n\nme_vip: [“我”页面] 会员头图和会员入口\n顶部的会员背景图、会员图标和“领会员”入口。\n\nme_shortcuts: [“我”页面] 保留的快捷入口\n    ├ album: 我的相册\n    ├ like: 赞/收藏\n    ├ watchhistory: 浏览记录\n    ├ draft: 草稿箱\n    ├ pay: 我的钱包\n    ├ ordercenter: 微博购订单\n    ├ productcenter: 创作中心\n    └ dress: 个性皮肤\n多个值用 | 分隔。\n只显示选中的入口。all 表示全部保留，不改动。其他入口可以直接填它的标识。\n\nme_cards: [“我”页面] 任务和活动卡片\n用户任务、活动、会员推广这一类卡片，以及入口上附带的推广数据。\n\nme_wallet: [“我”页面] 钱包一栏\n“我的钱包”那一整栏。\n\nme_recommend: [“我”页面] 为你推荐\n页面底部的“为你推荐”用户列表。\n\ndm_hide: [私信列表] 隐藏的入口\n    ├ 群推荐\n    ├ 活动通知\n    ├ 微博智搜\n    ├ 服务通知\n    ├ 上新通知\n    ├ 创作者小助手\n    ├ 微博任务\n    └ 微博小秘书\n多个值用 | 分隔。\n按名称隐藏私信列表里的入口。其他名称可以直接填写。\n\nlive_strip: [首页] 直播条里的推荐直播\n首页顶部直播条里推荐来的直播，你关注的人的直播会保留。\n\nentry: [入口] “我”页面里的“模块设置”入口\n填 false 不显示。只能在这里改。
 
@@ -13,9 +13,9 @@ http-response-jq ^https:\/\/api\.weibo\.cn\/2\/profile\/me 'if ("{{{entry}}}" | 
 
 [Script]
 # 改写响应：“我”页面、私信列表、首页直播条
-weibo.ui.response = type=http-response, pattern=^https:\/\/api\.weibo\.cn\/2\/(?:profile\/me|direct_messages\/user_list|live\/media_homelist), requires-body=1, max-size=2097152, timeout=10, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/weibo.js?v=5.1.1, argument="module=ui&me_vip={{{me_vip}}}&me_shortcuts={{{me_shortcuts}}}&me_cards={{{me_cards}}}&me_wallet={{{me_wallet}}}&me_recommend={{{me_recommend}}}&dm_hide={{{dm_hide}}}&live_strip={{{live_strip}}}&entry={{{entry}}}"
+weibo.ui.response = type=http-response, pattern=^(?:https:\/\/api\.weibo\.cn\/2\/profile\/me|https:\/\/api\.weibo\.cn\/2\/direct_messages\/user_list|https:\/\/api\.weibo\.cn\/2\/live\/media_homelist), requires-body=1, max-size=2097152, timeout=10, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/weibo.js?v=5.2.0, argument="module=ui&me_vip={{{me_vip}}}&me_shortcuts={{{me_shortcuts}}}&me_cards={{{me_cards}}}&me_wallet={{{me_wallet}}}&me_recommend={{{me_recommend}}}&dm_hide={{{dm_hide}}}&live_strip={{{live_strip}}}&entry={{{entry}}}"
 # 微博里的管理页面，以及它读写设置用的接口
-weibo.ui.settings = type=http-request, pattern=^https:\/\/api\.weibo\.cn\/surge-rules\/weibo\/(?:settings|api\/ui)(?:\?|$), requires-body=1, max-size=65536, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/weibo.js?v=5.1.1, argument="module=ui&me_vip={{{me_vip}}}&me_shortcuts={{{me_shortcuts}}}&me_cards={{{me_cards}}}&me_wallet={{{me_wallet}}}&me_recommend={{{me_recommend}}}&dm_hide={{{dm_hide}}}&live_strip={{{live_strip}}}&entry={{{entry}}}"
+weibo.ui.settings = type=http-request, pattern=^https:\/\/api\.weibo\.cn\/surge-rules\/weibo\/(?:settings|api\/ui)(?:\?|$), requires-body=1, max-size=65536, script-path=https://raw.githubusercontent.com/leetingo/surge-rules/main/scripts/weibo.js?v=5.2.0, argument="module=ui&me_vip={{{me_vip}}}&me_shortcuts={{{me_shortcuts}}}&me_cards={{{me_cards}}}&me_wallet={{{me_wallet}}}&me_recommend={{{me_recommend}}}&dm_hide={{{dm_hide}}}&live_strip={{{live_strip}}}&entry={{{entry}}}"
 
 [MITM]
 hostname = %APPEND% api.weibo.cn
