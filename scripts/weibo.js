@@ -15,7 +15,7 @@
  */
 'use strict';
 
-var VERSION = '5.2.1';
+var VERSION = '5.3.0';
 var PAGE_PATH = '/surge-rules/weibo/settings';
 var API_PATH = '/surge-rules/weibo/api/';
 var ENTRY_ID = '100505_-_modulesettings';
@@ -28,22 +28,30 @@ var SCHEMA = {
     store: 'leetingo_weibo_ad',
     items: [
       { key: 'splash', group: '开屏', title: '开屏广告', type: 'bool', def: true,
-        desc: '清空预加载的开屏广告，并拦下开屏广告的实时请求。' },
+        desc: '清空新版和旧版预加载的开屏广告，并拦下开屏广告的实时请求。' },
       { key: 'feed_ad', group: '信息流', title: '信息流广告', type: 'bool', def: true,
-        desc: '首页、热门、搜索结果和发现页里的广告微博与广告卡片。' },
+        desc: '首页、热门、分组、搜索、超话、转发列表和通用卡片流里的广告微博与广告卡片。' },
+      { key: 'video_ad', group: '视频流', title: '视频流广告和推广', type: 'bool', def: true,
+        desc: '全屏视频流、小视频列表、视频混排流和预加载里的广告，以及视频带货、底部横幅和悬浮窗。' },
+      { key: 'video_autoplay', group: '视频流', title: '关闭小视频自动连播', type: 'bool', def: false,
+        desc: '清空竖屏小视频列表里的后续推荐视频，播完当前视频后不再自动连播。' },
       { key: 'profile_ad', group: '个人主页', title: '他人个人主页广告', type: 'bool', def: true,
-        desc: '个人主页时间线里明确标记为广告的微博。保留正常微博、置顶内容和普通推荐。' },
+        desc: '个人主页时间线和微博分页里带广告标记的微博与卡片。保留正常微博、置顶内容和普通推荐。' },
+      { key: 'profile_follow_rec', group: '个人主页', title: '关注操作和主页底栏推荐', type: 'bool', def: true,
+        desc: '关注或取消关注时的相关推荐卡片，以及个人主页底部菜单里的推荐、催更、赞赏和弹窗。' },
       { key: 'follow_rec', group: '信息流', title: '关注流里的推荐微博', type: 'select', def: 'titled',
         options: [['titled', '只去掉带推荐标题的'], ['all', '未关注的一律去掉'], ['off', '不处理']],
         desc: '带推荐标题指“关注 X 的人也关注”这一类。选“未关注的一律去掉”时，你关注的超话里的帖子和你自己的微博也可能被去掉。' },
       { key: 'notify_nag', group: '信息流', title: '“开启通知”横幅', type: 'bool', def: true,
-        desc: '信息流里提示打开推送通知的横幅。' },
+        desc: '信息流和热搜页里提示打开推送通知的横幅。' },
       { key: 'discover_banner', group: '发现页', title: '顶部轮播窗', type: 'bool', def: true,
-        desc: '发现页顶部的推广轮播图。' },
+        desc: '发现页和趋势页顶部的推广轮播图与头图。' },
       { key: 'hot_search_ad', group: '发现页', title: '热搜里的推广条目', type: 'bool', def: true,
-        desc: '热搜列表里带推广标记的条目。' },
+        desc: '热搜列表和热搜页里带推广标记的条目。' },
+      { key: 'chaohua_ad', group: '超话', title: '超话推荐和热搜推广', type: 'bool', def: true,
+        desc: '超话搜索页里的感兴趣话题推广，以及超话时间线里的推荐超话、热门超话和广告卡片。' },
       { key: 'detail_ad', group: '微博详情', title: '广告卡片', type: 'bool', def: true,
-        desc: '正文下方的广告卡片和横版广告。' },
+        desc: '新版和旧版正文下方的广告卡片、横版广告及好物种草推广。' },
       { key: 'detail_hot_search', group: '微博详情', title: '“大家都在搜”卡片', type: 'bool', def: true,
         desc: '正文下方的相关搜索卡片。' },
       { key: 'detail_reward', group: '微博详情', title: '赞赏信息', type: 'bool', def: true,
@@ -53,11 +61,11 @@ var SCHEMA = {
       { key: 'detail_positive', group: '微博详情', title: '互动后的推荐内容', type: 'bool', def: true,
         desc: '点赞或评论之后插入的推荐内容。' },
       { key: 'comment_ad', group: '评论区', title: '评论区广告', type: 'bool', def: true,
-        desc: '插在评论之间的广告微博。' },
+        desc: '新版和旧版评论区及楼中楼里插在评论之间的广告微博和推广。' },
       { key: 'comment_tip', group: '评论区', title: '顶部提示条', type: 'bool', def: true,
-        desc: '评论区顶部带“查看详情”的提示条，例如铁粉关系。' },
+        desc: '评论区顶部带“查看详情”的提示条和过滤提示。' },
       { key: 'comment_ai', group: '评论区', title: 'AI 总结和调查卡片', type: 'bool', def: true,
-        desc: '“罗伯特总结”和“你对此评论区是否满意”这类卡片。' },
+        desc: '“罗伯特总结”和“你对此评论区是否满意”这类调查卡片。' },
       { key: 'message_ad', group: '消息页', title: '动态里的广告卡片', type: 'bool', def: true,
         desc: '消息页动态里带广告标记的卡片。' },
       { key: 'message_rec', group: '消息页', title: '推荐关注', type: 'bool', def: true,
@@ -105,7 +113,13 @@ var SCHEMA = {
         free: true, allowAll: false,
         desc: '按名称隐藏私信列表里的入口。其他名称可以直接填写。' },
       { key: 'live_strip', group: '首页', title: '直播条里的推荐直播', type: 'bool', def: true,
-        desc: '首页顶部直播条里推荐来的直播，你关注的人的直播会保留。' }
+        desc: '首页顶部直播条里推荐来的直播，你关注的人的直播会保留。' },
+      { key: 'home_tabs', group: '首页', title: '顶部推广标签', type: 'bool', def: true,
+        desc: '去掉首页顶部导航栏里插入的推广频道标签（如品牌活动标签）。' },
+      { key: 'home_publisher', group: '首页', title: '右上角发布菜单精简', type: 'bool', def: true,
+        desc: '右上角“+”号发布菜单只保留“写微博”、“图片”和“视频”，去掉推广入口。' },
+      { key: 'chaohua_tabs', group: '超话', title: '超话页面导航精简', type: 'bool', def: true,
+        desc: '去掉超话社区顶部的浮动按钮和底部导航里的“广场”入口。' }
     ],
     fixed: [
       { key: 'entry', title: '“我”页面里的“模块设置”入口', def: 'true' }
@@ -277,10 +291,14 @@ function isAdData(d, allowReadtime) {
   if (isObj(m) && m.is_ads === true) return true;
   return false;
 }
-function isAdItem(it) { return isObj(it) && isAdData(it.data); }
+function isAdItem(it, allowReadtime) {
+  return isObj(it) && (isAdData(it, allowReadtime) || isAdData(it.data, allowReadtime) || isAdData(it.mblog, allowReadtime) || isAdData(it.status, allowReadtime));
+}
 function isBanner(it) { return isObj(it) && isObj(it.data) && it.data.card_type === 118 && it.data.itemid === 'finder_window'; }
 function isNag(it) {
-  if (!isObj(it) || it.category !== 'cell' || !isObj(it.title)) return false;
+  if (!isObj(it)) return false;
+  if (isObj(it.data) && it.data.itemid === 'hot-search-push-notice') return true;
+  if (it.category !== 'cell' || !isObj(it.title)) return false;
   var t = it.title.content;
   return /开启通知/.test(t === undefined || t === null ? '' : String(t));
 }
@@ -298,6 +316,17 @@ function cleanItems(node, drop) {
   if (kept.length !== node.items.length) node.items = kept;
 }
 
+// 旧式列表用 cards/card_group 包装微博；只检查卡片本身和直接承载的微博，
+// 不深入 retweeted_status，避免因为引用了广告微博而删掉正常用户的转发。
+function cleanCards(node, drop) {
+  if (!isObj(node)) return;
+  drop = drop || isAdItem;
+  ['cards', 'card_group'].forEach(function (key) {
+    filterArray(node, key, drop);
+    if (isArr(node[key])) node[key].forEach(function (card) { cleanCards(card, drop); });
+  });
+}
+
 function filterArray(owner, key, drop) {
   if (!isObj(owner) || !isArr(owner[key])) return;
   var kept = [];
@@ -309,6 +338,10 @@ function filterArray(owner, key, drop) {
 
 function removeKey(owner, key) {
   if (isObj(owner) && has(owner, key)) { delete owner[key]; changed++; }
+}
+
+function setField(owner, key, val) {
+  if (isObj(owner) && has(owner, key) && owner[key] !== val) { owner[key] = val; changed++; }
 }
 
 function feedDrop(cfg) {
@@ -325,30 +358,173 @@ function adSplashPreload(obj, cfg) {
   changed++;
 }
 
-// 仅处理真实 HAR 确认的主页 items[].data；普通历史转发也可能带 adMblog，
-// 所以主页不能仅凭阅读计时分类删帖，不递归删除转发正文或其他未知容器。
+function adSplashLegacy(obj, cfg) {
+  if (!cfg.splash || !isObj(obj)) return;
+  if (isObj(obj.cached_ad) && isArr(obj.cached_ad.ads) && obj.cached_ad.ads.length > 0) {
+    obj.cached_ad.ads = [];
+    changed++;
+  }
+  if (isArr(obj.ads) && obj.ads.length > 0) {
+    obj.ads = [];
+    changed++;
+  }
+}
+
+function adSplashSdk(obj, cfg) {
+  if (!cfg.splash || !isObj(obj)) return;
+  setField(obj, 'needlocation', false);
+  setField(obj, 'show_push_splash_ad', false);
+  setField(obj, 'background_delay_display_time', 31536000);
+  setField(obj, 'lastAdShow_delay_display_time', 31536000);
+  setField(obj, 'realtime_ad_video_stall_time', 0);
+  setField(obj, 'realtime_ad_timeout_duration', 0);
+  if (isArr(obj.ads) && obj.ads.length > 0) {
+    obj.ads = [];
+    changed++;
+  }
+}
+
+// 实际主页里普通历史转发也会带 adMblog，不能仅凭阅读计时分类删除。
 function adProfile(obj, cfg) {
+  if (!isObj(obj)) return;
+  if (cfg.profile_follow_rec && isObj(obj.loadedInfo)) {
+    removeKey(obj.loadedInfo, 'follow_guide_info');
+  }
   if (!cfg.profile_ad) return;
-  filterArray(obj, 'items', function (item) {
-    return isObj(item) && isAdData(item.data, false);
+  var drop = function (item) { return isAdItem(item, false); };
+  cleanItems(obj, drop);
+  cleanCards(obj, drop);
+}
+
+function cleanToolbarRec(toolbar) {
+  if (!isObj(toolbar)) return;
+  removeKey(toolbar, 'lottie_guide');
+  if (isObj(toolbar.servicePopup)) removeKey(toolbar.servicePopup, 'subData');
+  filterArray(toolbar, 'items', function (it) {
+    return isObj(it) && (it.identifier === 'recommend' || it.identifier === 'urge' || /^reward_/.test(String(it.identifier || '')));
   });
+}
+
+function adProfileFollow(obj, cfg) {
+  if (!cfg.profile_follow_rec || !isObj(obj)) return;
+  if (isArr(obj.cards) && obj.cards.length > 0) { obj.cards = []; changed++; }
+  cleanToolbarRec(obj.toolbar_menus_new);
+}
+
+function adProfileUserinfo(obj, cfg) {
+  if (!cfg.profile_follow_rec || !isObj(obj)) return;
+  if (isObj(obj.footer) && isObj(obj.footer.data)) {
+    cleanToolbarRec(obj.footer.data.toolbar_menus_new);
+  }
 }
 
 function adTimeline(obj, cfg, url) {
   if (!isObj(obj)) return;
   cleanItems(obj, feedDrop(cfg));
+  if (cfg.feed_ad) {
+    filterArray(obj, 'statuses', isAdData);
+    removeKey(obj, 'ad');
+    removeKey(obj, 'advertises');
+  }
+  if (/\/2\/statuses\/container_timeline_topic/.test(url)) {
+    if (cfg.profile_follow_rec && isObj(obj.header) && isObj(obj.header.data)) {
+      removeKey(obj.header.data, 'follow_guide_info');
+    }
+    if (cfg.chaohua_ad) {
+      cleanItems(obj, function (it) {
+        if (!isObj(it)) return false;
+        var ct = isObj(it.data) ? it.data.card_type : undefined;
+        if (it.category === 'card' && (ct === 4 || ct === 197 || ct === 1012)) return true;
+        if (it.category === 'card' && ct === 22 && has(it.data, 'card_ad_style')) return true;
+        if (ct === 1008 || ct === 1024) return true;
+        return false;
+      });
+    }
+  }
   if (cfg.follow_rec !== 'off' && /\/2\/statuses\/container_timeline(_unread)?\?/.test(url)) {
     var all = cfg.follow_rec === 'all';
     filterArray(obj, 'items', function (it) {
-      if (!isObj(it) || it.category !== 'feed' || !isObj(it.data) || !isObj(it.data.user)) return false;
-      if (it.data.user.following !== false) return false;
+      if (!isObj(it)) return false;
+      var d = it.category === 'feed' ? it.data : (it.category === 'dynamic' ? it.status : null);
+      if (!isObj(d) || !isObj(d.user) || d.user.following !== false) return false;
       if (all) return true;
-      var t = it.data.title;
+      var t = d.title;
       if (!isObj(t)) return false;
       var text = t.text === undefined || t.text === null || t.text === false ? '' : String(t.text);
       return text.length > 0;
     });
   }
+}
+
+function adLegacyFeed(obj, cfg) {
+  if (!isObj(obj)) return;
+  if (cfg.discover_banner) removeKey(obj, 'top');
+  cleanItems(obj, feedDrop(cfg));
+  if (!cfg.feed_ad && !cfg.chaohua_ad) return;
+  var drop = function (it) {
+    if (cfg.feed_ad && isAdItem(it)) return true;
+    if (!isObj(it)) return false;
+    if (cfg.feed_ad) {
+      if (isObj(it.actionlog) && typeof it.actionlog.ext === 'string' && it.actionlog.ext.indexOf('ads_word') >= 0) return true;
+      if (typeof it.itemid === 'string' && (it.itemid.indexOf('ads_word') >= 0 || it.itemid.indexOf('infeed_weibo_mall') >= 0 || it.itemid.indexOf('infeed_pagemanual3') >= 0)) return true;
+      if (it.card_type === 22 && (it.title_extra_text === '广告' || has(it, 'card_ad_style'))) return true;
+      if (it.card_type === 42 && (it.title_extra_text === '广告' || it.is_ads === true)) return true;
+    }
+    if (cfg.chaohua_ad) {
+      if (typeof it.itemid === 'string' && (it.itemid.indexOf('infeed_may_interest_in') >= 0 || it.itemid.indexOf('infeed_friends_recommend') >= 0 || it.itemid.indexOf('feed_-_invite') >= 0)) return true;
+      if (typeof it.itemId === 'string' && it.itemId.indexOf('infeed_may_interest_in') >= 0) return true;
+    }
+    return false;
+  };
+  cleanItems(obj, drop);
+  cleanCards(obj, drop);
+  if (cfg.feed_ad) {
+    ['statuses', 'reposts', 'hot_reposts'].forEach(function (key) { filterArray(obj, key, isAdData); });
+    removeKey(obj, 'ad');
+    removeKey(obj, 'advertises');
+  }
+}
+
+function adFlowpage(obj, cfg) {
+  if (!isObj(obj)) return;
+  cleanItems(obj, function (it) {
+    if (cfg.notify_nag && isNag(it)) return true;
+    if (cfg.hot_search_ad && isObj(it) && isObj(it.data) && (has(it.data, 'promotion') || /_img_search_stick/.test(String(it.data.pic || '')))) return true;
+    return cfg.feed_ad && isAdItem(it);
+  });
+}
+
+function adChaohuaSearch(obj, cfg) {
+  if (!cfg.chaohua_ad || !isObj(obj)) return;
+  filterArray(obj, 'items', function (it) {
+    return (isObj(it) && isObj(it.data) && it.data.card_type === 1007) || isAdItem(it);
+  });
+}
+
+function adVideoStream(obj, cfg, url) {
+  if (!isObj(obj)) return;
+  if (cfg.video_autoplay && /\/2\/video\/tiny_stream_video_list/.test(url)) {
+    if (isArr(obj.statuses) && obj.statuses.length > 0) { obj.statuses = []; changed++; }
+    if (isArr(obj.tab_list) && obj.tab_list.length > 0) { obj.tab_list = []; changed++; }
+    return;
+  }
+  if (!cfg.video_ad) return;
+  cleanItems(obj, isAdItem);
+  cleanCards(obj, isAdItem);
+  filterArray(obj, 'statuses', isAdData);
+}
+
+function adVideoMidDetail(obj, cfg) {
+  if (!cfg.video_ad || !isObj(obj) || !isObj(obj.status) || !isObj(obj.status.video_info)) return;
+  var vi = obj.status.video_info;
+  if (isArr(vi.shopping) && vi.shopping.length > 0) { vi.shopping = []; changed++; }
+  removeKey(vi, 'bottom_banner');
+  removeKey(vi, 'float_info');
+}
+
+function adVideoCache(obj, cfg) {
+  if (!cfg.video_ad || !isObj(obj) || !isArr(obj.lists)) return;
+  obj.lists.forEach(function (list) { cleanItems(list, isAdItem); });
 }
 
 function hotSearchPromo(node) {
@@ -378,7 +554,25 @@ function adFinder(obj, cfg) {
 }
 
 function adSearchTimeline(obj, cfg) {
-  cleanItems(obj, feedDrop(cfg));
+  if (!isObj(obj)) return;
+  if (cfg.popup_float && isObj(obj.loadedInfo) && isObj(obj.loadedInfo.serviceMap)) {
+    removeKey(obj.loadedInfo.serviceMap, 'layer');
+  }
+  if (cfg.feed_ad && isObj(obj.header) && isObj(obj.header.data)) {
+    ['bg_img', 'background_scheme', 'background_url'].forEach(function (k) { removeKey(obj.header.data, k); });
+  }
+  var drop = function (it) {
+    if (feedDrop(cfg)(it)) return true;
+    if (!cfg.feed_ad || !isObj(it)) return false;
+    var d = isObj(it.data) ? it.data : it;
+    if (d.itemid === 'ads_slide') return true;
+    if (d.card_type === 22 || d.card_type === 89 || d.card_type === 206 || d.card_type === 247 || d.card_type === 249) return true;
+    if (d.card_type === 42 && (d.is_ads === true || d.title_extra_text === '广告')) return true;
+    if (d.card_type === 3 && isArr(d.pics) && d.pics.length > 0 && !isObj(d.mblog)) return true;
+    return false;
+  };
+  cleanItems(obj, drop);
+  if (cfg.feed_ad) cleanCards(obj, drop);
 }
 
 function adDetail(obj, cfg) {
@@ -403,6 +597,27 @@ function adDetail(obj, cfg) {
   }
 }
 
+function adLegacyDetail(obj, cfg) {
+  if (!isObj(obj)) return;
+  if (cfg.detail_reward) removeKey(obj, 'reward_info');
+  if (cfg.detail_hot_search) removeKey(obj, 'top_cards');
+  if (!cfg.detail_ad) return;
+  filterArray(obj, 'head_cards', isAdItem);
+  ['floating_button', 'extend_info'].forEach(function (k) { removeKey(obj, k); });
+  if (has(obj, 'has_common_struct') && obj.has_common_struct === true) {
+    obj.has_common_struct = false;
+    changed++;
+  }
+  var trend = obj.trend;
+  if (!isObj(trend)) return;
+  var extra = trend.extra_struct;
+  var button = isObj(extra) && extra.extBtnInfo;
+  var title = isObj(trend.titles) && typeof trend.titles.title === 'string' ? trend.titles.title : '';
+  if (isAdItem(trend) || /(博主好物种草|相关推荐|专区)/.test(title) || (isObj(button) && typeof button.btn_picurl === 'string' && button.btn_picurl.indexOf('ad') >= 0)) {
+    removeKey(obj, 'trend');
+  }
+}
+
 function adComment(obj, cfg) {
   filterArray(obj, 'items', function (it) {
     if (!isObj(it)) return false;
@@ -412,6 +627,21 @@ function adComment(obj, cfg) {
     if (it.category === 'card' && isObj(it.data) && it.data.card_type === 236) return cfg.comment_ai;
     return false;
   });
+}
+
+function adLegacyComment(obj, cfg) {
+  if (!isObj(obj)) return;
+  filterArray(obj, 'datas', function (item) {
+    if (!isObj(item)) return false;
+    if (cfg.comment_ad && (has(item, 'adType') || item.type === 6 || isAdItem(item) || isAdData(item.blog))) return true;
+    if (cfg.comment_tip && item.type === 15) return true;
+    if (cfg.comment_ai && item.type === 41) return true;
+    return false;
+  });
+  if (cfg.comment_ad) {
+    filterArray(obj, 'root_comments', isAdItem);
+    filterArray(obj, 'comments', isAdItem);
+  }
 }
 
 function adPositive(obj, cfg) {
@@ -443,15 +673,15 @@ function adActive(obj, cfg) {
     changed++;
   }
   if (cfg.launch_guide) {
-    ['compose_add_guide', 'loginconfig', 'profile_lotties', 'ug_red_paper', 'weibo_pic_banner']
+    ['compose_add_guide', 'interceptad', 'interceptad_cardlist', 'loginconfig', 'profile_lotties', 'ug_red_paper', 'weibo_pic_banner']
       .forEach(function (k) { removeKey(obj, k); });
   }
 }
 
 function adCheckin(obj, cfg) {
-  if (!cfg.checkin || !isObj(obj) || !has(obj, 'show') || obj.show === 0) return;
-  obj.show = 0;
-  changed++;
+  if (!cfg.checkin || !isObj(obj)) return;
+  setField(obj, 'show', 0);
+  setField(obj, 'show_time', 0);
 }
 
 /* ---------- 界面模块：响应 ---------- */
@@ -519,23 +749,62 @@ function uiLive(obj, cfg) {
   filterArray(obj, 'data', function (x) { return isObj(x) && x.from_tuijian === true; });
 }
 
+function uiHomeGroups(obj, cfg) {
+  if (!cfg.home_tabs || !isObj(obj)) return;
+  filterArray(obj, 'pageDatas', function (item) {
+    return isObj(item) && item.pageDataType === 'homeExtend';
+  });
+}
+
+function uiPublisher(obj, cfg) {
+  if (!cfg.home_publisher || !isObj(obj)) return;
+  filterArray(obj, 'elements', function (el) {
+    return isObj(el) && ['写微博', '图片', '视频'].indexOf(el.app_name) < 0;
+  });
+}
+
+function uiChaohuaChannels(obj, cfg) {
+  if (!cfg.chaohua_tabs || !isObj(obj)) return;
+  removeKey(obj, 'button_configs');
+  if (isObj(obj.channelInfo)) {
+    filterArray(obj.channelInfo, 'channel_list', function (t) {
+      return isObj(t) && t.title === '广场';
+    });
+  }
+}
+
 /* ---------- 路由 ---------- */
 
 var RESPONSE_ROUTES = [
-  { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/profile\/container_timeline(?:\?|$)/, fn: adProfile },
   { mod: 'ad', re: /^https:\/\/bootpreload\.uve\.weibo\.com\/v[12]\/ad\/preload/, fn: adSplashPreload },
-  { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/statuses\/container_timeline/, fn: adTimeline },
+  { mod: 'ad', re: /^https:\/\/wbapp\.uve\.weibo\.com\/(?:preload\/get_ad|wbapplua\/wbpullad\.lua)/, fn: adSplashLegacy },
+  { mod: 'ad', re: /^https:\/\/sdkapp\.uve\.weibo\.com\/interface\/sdk\/sdkad\.php/, fn: adSplashSdk, sdkSuffix: true },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/profile\/(?:container_timeline|statuses\/tab)(?:\?|$)/, fn: adProfile },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/(?:profile\/dealatt|friendships\/(?:create|destroy))(?:\?|$)/, fn: adProfileFollow },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/profile\/userinfo(?:\?|$)/, fn: adProfileUserinfo },
+  { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/statuses\/(?:container_timeline|unread_hot_timeline)/, fn: adTimeline },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/(?:cardlist|page|container\/asyn|flowlist|groups\/timeline|statuses\/(?:friends\/timeline|unread_friends_timeline|repost_timeline))(?:\?|$)/, fn: adLegacyFeed },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/flowpage(?:\?|$)/, fn: adFlowpage },
+  { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/shproxy\/chaohua\/discovery\/searchactive(?:\?|$)/, fn: adChaohuaSearch },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/(?:video\/(?:full_screen_stream|tiny_stream_video_list|community_tab)|statuses\/video_mixtimeline)(?:\?|$)/, fn: adVideoStream },
+  { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/video\/tiny_stream_mid_detail(?:\?|$)/, fn: adVideoMidDetail },
+  { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/video\/flow_stream_cache(?:\?|$)/, fn: adVideoCache },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/search\/finder\?/, fn: adFinder },
-  { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/search\/container_timeline/, fn: adSearchTimeline },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/(?:search\/(?:container_timeline|container_discover)|searchall)(?:\?|$)/, fn: adSearchTimeline },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/statuses\/container_detail\?/, fn: adDetail },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/statuses\/(?:extend|show)(?:\?|$)/, fn: adLegacyDetail },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/statuses\/container_detail_comment/, fn: adComment },
+  { mod: 'ad', re: /^https:\/\/(?:api\.weibo\.cn|mapi\.weibo\.com)\/2\/comments\/build_comments(?:\?|$)/, fn: adLegacyComment },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/statuses\/container_positive/, fn: adPositive },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/messageflow\/notice/, fn: adNotice },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/push\/active/, fn: adActive },
   { mod: 'ad', re: /^https:\/\/api\.weibo\.cn\/2\/checkin\/show/, fn: adCheckin },
   { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/profile\/me/, fn: uiMe },
   { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/direct_messages\/user_list/, fn: uiDmList },
-  { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/live\/media_homelist/, fn: uiLive }
+  { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/live\/media_homelist/, fn: uiLive },
+  { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/groups\/allgroups\/v2(?:\?|$)/, fn: uiHomeGroups },
+  { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/client\/publisher_list(?:\?|$)/, fn: uiPublisher },
+  { mod: 'ui', re: /^https:\/\/api\.weibo\.cn\/2\/!\/huati\/discovery_home_bottom_channels(?:\?|$)/, fn: uiChaohuaChannels }
 ];
 
 // 直接返回空结果的请求：[模块, 地址, 对应的开关]
@@ -552,12 +821,15 @@ function onResponse(mod, args, url) {
   }
   var body = $response.body;
   if (!route || typeof body !== 'string' || body.length === 0) return $done({});
+  var hasOkSuffix = route.sdkSuffix && /OK\s*$/.test(body);
+  var rawJson = hasOkSuffix ? body.replace(/OK\s*$/, '') : body;
   var obj;
-  try { obj = JSON.parse(protectBigInts(body)); } catch (e) { return $done({}); }
+  try { obj = JSON.parse(protectBigInts(rawJson)); } catch (e) { return $done({}); }
   route.fn(obj, effective(mod, args).values, url);
   if (changed === 0) return $done({});
   log(url.replace(/\?.*$/, '').replace(/^https:\/\/[^/]+/, '') + ' 改动 ' + changed + ' 处');
-  $done({ body: restoreBigInts(JSON.stringify(obj)) });
+  var out = restoreBigInts(JSON.stringify(obj));
+  $done({ body: hasOkSuffix ? out + 'OK' : out });
 }
 
 /* ---------- 请求：拦截和管理页面 ---------- */
