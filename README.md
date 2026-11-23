@@ -14,6 +14,7 @@
 |---|---|---|
 | 规则集 | `rules/netflix.list` | 只含 Netflix 自有域名，不含共享云后缀和地址段 |
 | 规则集 | `rules/apns.list` | 只含 Apple 推送服务的域名和地址段 |
+| 规则集 | `rules/claude.list` | 只含 Anthropic/Claude 自有域名、专属子域和自有 ASN |
 | 模块 | 微博：去广告 | 开屏、信息流、个人主页、发现页、详情、评论区、消息页的广告和推广，以及弹窗引导 |
 | 模块 | 微博：界面 | 精简“我”页面、私信列表、首页直播条 |
 | 模块 | 美团外卖：去开屏广告 | 拦下开屏广告的图片和视频素材，不碰应用接口 |
@@ -37,6 +38,7 @@
 ```
 RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/netflix.list,Netflix,extended-matching,no-resolve
 RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/apns.list,"Apple APN",extended-matching,no-resolve
+RULE-SET,https://raw.githubusercontent.com/leetingo/surge-rules/main/rules/claude.list,LLM,extended-matching,no-resolve
 ```
 
 模块更新后在模块列表里手动更新；规则集默认每 24 小时重新下载，也可以在外部资源里手动更新。
